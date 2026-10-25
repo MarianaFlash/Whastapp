@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pendientes</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">💬</span>
+      <span>Pendientes</span>
+      <span class="conn" id="conn">Conectando…</span>
+    </div>
+    <div class="actions">
+      <button class="btn" id="btn-settings" title="Ajustes">⚙️ <span class="label">Ajustes</span></button>
+      <button class="btn" id="btn-logout" title="Salir">⎋ <span class="label">Salir</span></button>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel" id="qr-panel" hidden>
+      <h2>Vincula tu WhatsApp</h2>
+      <div class="qr-wrap">
+        <img id="qr-img" alt="Código QR para vincular WhatsApp">
+        <div>
+          <p>Esta herramienta se conecta como un dispositivo vinculado, igual que WhatsApp Web.</p>
+          <ol>
+            <li>Abre WhatsApp en tu teléfono.</li>
+            <li>Toca <strong>⋮</strong> o <strong>Ajustes</strong> → <strong>Dispositivos vinculados</strong>.</li>
+            <li>Toca <strong>Vincular un dispositivo</strong> y escanea este código.</li>
+          </ol>
+          <p>El código se renueva solo cada pocos segundos.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="conn-panel" hidden>
+      <h2 id="conn-title">Conectando con WhatsApp…</h2>
+      <p id="conn-detail"></p>
+    </section>
+
+    <section class="stats" id="stats"></section>
+
+    <div class="toolbar">
+      <nav class="tabs" id="tabs">
+        <button data-view="pending" class="active">Pendientes <span class="pill" id="pill-pending">0</span></button>
+        <button data-view="snoozed">Pospuestos <span class="pill" id="pill-snoozed">0</span></button>
+        <button data-view="vip">⭐ VIP</button>
+        <button data-view="all">Todos</button>
+        <button data-view="ignored">Ignorados</button>
+      </nav>
+      <div class="search"><input id="search" type="search" placeholder="Buscar por nombre…"></div>
+    </div>
+
+    <ul class="list" id="list"></ul>
+    <div class="empty" id="empty" hidden></div>
+  </main>
+
+  <dialog id="dlg-settings">
+    <form method="dialog" id="form-settings">
+      <div class="dlg-head"><h2>Ajustes</h2><button class="btn icon" type="button" data-close>✕</button></div>
+      <div class="dlg-body">
+        <fieldset>
+          <legend>Umbrales ⭐ VIP (minutos esperando)</legend>
+          <div class="grid-3">
+            <div class="field"><label>🟡 Atención</label><input type="number" min="1" name="vip.yellow" required></div>
+            <div class="field"><label>🔴 Urgente</label><input type="number" min="1" name="vip.red" required></div>
+            <div class="field"><label>🚨 Crítico</label><input type="number" min="1" name="vip.critical" required></div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Umbrales contactos normales (minutos esperando)</legend>
+          <div class="grid-3">
+            <div class="field"><label>🟡 Atención</label><input type="number" min="1" name="normal.yellow" required></div>
+            <div class="field"><label>🔴 Urgente</label><input type="number" min="1" name="normal.red" required></div>
+            <div class="field"><label>🚨 Crítico</label><input type="number" min="1" name="normal.critical" required></div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Avisos por WhatsApp (a tu propio chat)</legend>
+          <div class="field inline"><label>Enviar avisos por WhatsApp</label><label class="switch"><input type="checkbox" name="notifyViaWhatsApp"><span></span></label></div>
+          <div class="field inline"><label>Avisar de inmediato cuando algo pase a crítico</label><label class="switch"><input type="checkbox" name="notifyCriticalImmediately"><span></span></label></div>
+          <div class="field"><label>Horas de los resúmenes (separadas por coma, formato 24 h)</label><input type="text" name="digestTimes" placeholder="09:00, 13:00, 18:00"></div>
+          <div class="field"><label>Nombre del asistente en los mensajes</label><input type="text" name="assistantName" maxlength="40"></div>
+          <div class="field inline"><label>Horario silencioso</label><label class="switch"><input type="checkbox" name="quietHours.enabled"><span></span></label></div>
+          <div class="grid-2">
+            <div class="field"><label>Desde</label><input type="time" name="quietHours.start"></div>
+            <div class="field"><label>Hasta</label><input type="time" name="quietHours.end"></div>
+          </div>
+          <div class="choices">
+            <button class="btn small" type="button" id="btn-test">Enviar mensaje de prueba</button>
+            <button class="btn small" type="button" id="btn-digest">Enviar resumen ahora</button>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Qué cuenta como pendiente</legend>
+          <div class="field">
+            <label>Grupos de WhatsApp</label>
+            <select name="groupsMode">
+              <option value="mentions">Solo si me mencionan o responden a mi mensaje</option>
+              <option value="all">Cualquier mensaje en el grupo</option>
+              <option value="ignore">Ignorar grupos</option>
+            </select>
+          </div>
+          <div class="field inline"><label>Mi reacción (👍❤️) cuenta como respuesta</label><label class="switch"><input type="checkbox" name="reactionCountsAsReply"><span></span></label></div>
+          <div class="field inline"><label>Guardar vista previa del último mensaje</label><label class="switch"><input type="checkbox" name="storePreview"><span></span></label></div>
+        </fieldset>
+        <fieldset>
+          <legend>Grupos VIP</legend>
+          <div class="field"><label>Nombres separados por coma</label><input type="text" name="vipGroups" placeholder="Clientes, Familia, Mejores amigos"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Este navegador</legend>
+          <div class="choices">
+            <button class="btn small" type="button" id="btn-browser-notif">Activar avisos del navegador</button>
+            <button class="btn small danger" type="button" id="btn-unlink">Desvincular WhatsApp</button>
+          </div>
+          <p class="hint" style="margin-top:8px">Los avisos del navegador solo funcionan mientras esta pestaña esté abierta.</p>
+        </fieldset>
+      </div>
+      <div class="dlg-foot">
+        <button class="btn" type="button" data-close>Cancelar</button>
+        <button class="btn primary" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-vip">
+    <div class="dlg-head"><h2 id="vip-title">Marcar como VIP</h2><button class="btn icon" type="button" data-close>✕</button></div>
+    <div class="dlg-body">
+      <p class="hint">Elige el grupo. Los VIP tienen umbrales más cortos y van primero en la lista.</p>
+      <div class="choices" id="vip-choices"></div>
+      <div class="field" style="margin-top:12px"><label>Otro grupo</label><input type="text" id="vip-custom" placeholder="Ej: Proveedores"></div>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn danger" type="button" id="vip-remove">Quitar estrella</button>
+      <button class="btn" type="button" data-close>Cancelar</button>
+      <button class="btn primary" type="button" id="vip-save-custom">Guardar</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-snooze">
+    <div class="dlg-head"><h2>Posponer</h2><button class="btn icon" type="button" data-close>✕</button></div>
+    <div class="dlg-body">
+      <p class="hint">El chat sale de la lista y no genera avisos hasta la hora elegida. Si te escriben de nuevo, sigue pospuesto.</p>
+      <div class="choices">
+        <button class="btn" data-minutes="60">1 hora</button>
+        <button class="btn" data-minutes="180">3 horas</button>
+        <button class="btn" data-tomorrow="9">Mañana 9:00</button>
+        <button class="btn" data-minutes="1440">24 horas</button>
+      </div>
+    </div>
+    <div class="dlg-foot"><button class="btn" type="button" data-close>Cancelar</button></div>
+  </dialog>
+
+  <div class="toast" id="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

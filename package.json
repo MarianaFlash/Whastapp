@@ -1,0 +1,31 @@
+{
+  "name": "pendientes-whatsapp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dashboard personal que muestra qué chats de WhatsApp esperan tu respuesta, cuánto llevan esperando y te avisa cuando un VIP pasa a crítico.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json && npm run copy-public",
+    "copy-public": "node -e \"require('fs').cpSync('src/web/public','dist/web/public',{recursive:true})\"",
+    "start": "node --no-warnings=ExperimentalWarning dist/index.js",
+    "test": "tsx --test src/**/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "baileys": "7.0.0-rc14",
+    "express": "^5.1.0",
+    "pino": "^9.6.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.0",
+    "@types/qrcode": "^1.5.5",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

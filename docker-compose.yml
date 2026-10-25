@@ -1,0 +1,39 @@
+services:
+  pendientes:
+    build: .
+    image: pendientes-whatsapp:local
+    container_name: pendientes
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3000"
+      DATA_DIR: /data
+    volumes:
+      - pendientes_data:/data
+    ports:
+      # Sin dominio: deja 0.0.0.0 y entra por http://IP_DEL_SERVIDOR:3000
+      # Con dominio + Caddy (perfil https): pon BIND_ADDRESS=127.0.0.1 en .env
+      - "${BIND_ADDRESS:-0.0.0.0}:3000:3000"
+
+  # Opcional: HTTPS automático con tu dominio.
+  # Arranca con:  docker compose --profile https up -d
+  caddy:
+    image: caddy:2-alpine
+    container_name: pendientes-caddy
+    restart: unless-stopped
+    profiles: ["https"]
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - pendientes
+
+volumes:
+  pendientes_data:
+  caddy_data:
+  caddy_config:
