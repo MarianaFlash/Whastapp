@@ -32,6 +32,36 @@ Grupos de WhatsApp: por defecto solo cuentan si te mencionan o responden a un me
 
 ## Instalación en el VPS de Hostinger
 
+Hay tres caminos. Los dos primeros no necesitan terminal: usan la imagen ya construida
+`ghcr.io/marianaflash/whastapp:latest`, que GitHub Actions publica en cada push.
+
+### Opción A · Docker Manager de hPanel (solo clics)
+
+Requiere que el VPS tenga una plantilla con Docker (en hPanel → VPS → Sistema operativo,
+por ejemplo "Ubuntu 24.04 with Docker").
+
+1. En hPanel entra a tu VPS y abre **Docker Manager**.
+2. Elige **Compose** → **Compose manually** y pega el contenido de `docker-compose.hostinger.yml`.
+3. En el panel de variables agrega `DASHBOARD_PASSWORD` con una contraseña larga y
+   `PUBLIC_URL` con `http://IP_DEL_SERVIDOR:3000`.
+4. Pulsa **Deploy** y espera a que el contenedor esté en verde.
+5. Si tienes un firewall activo en hPanel, agrega una regla TCP para el puerto `3000`.
+6. Abre `http://IP_DEL_SERVIDOR:3000`, entra y escanea el QR.
+
+### Opción B · Script con la API de Hostinger (sin SSH)
+
+Crea un token en hPanel → **API** y ejecuta desde cualquier computador con Node 18 o superior:
+
+```bash
+node scripts/deploy-hostinger.mjs --token TU_TOKEN --password CLAVE_DEL_DASHBOARD
+```
+
+El script encuentra tu VPS, crea el proyecto en Docker Manager, abre el puerto 3000 si hay
+firewall y te dice la URL. Si el proyecto ya existe, lo actualiza a la última imagen sin perder datos.
+Borra el token en hPanel cuando termines.
+
+### Opción C · Terminal (SSH)
+
 Necesitas un VPS con Ubuntu y acceso SSH. Todo corre en Docker, no hace falta instalar Node.
 
 ```bash

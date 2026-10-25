@@ -1,9 +1,11 @@
 # Para el "Docker Manager" de hPanel (Hostinger) o cualquier servidor con Docker.
 # Usa la imagen ya construida, no hay que compilar nada.
 #
-# Antes de pegar este archivo cambia:
-#   - CAMBIA-ESTA-CLAVE por una contraseña larga para entrar al dashboard
-#   - IP_DEL_SERVIDOR por la IP de tu VPS (o tu dominio si usas HTTPS)
+# Variables que debes definir (en el panel lateral de variables del Docker Manager,
+# o las envía solas el script scripts/deploy-hostinger.mjs):
+#   DASHBOARD_PASSWORD  contraseña larga para entrar al dashboard (obligatoria)
+#   PUBLIC_URL          http://IP_DEL_SERVIDOR:3000  (o tu dominio con https)
+#   TZ                  zona horaria, por defecto America/Bogota
 
 services:
   pendientes:
@@ -11,10 +13,10 @@ services:
     container_name: pendientes
     restart: unless-stopped
     environment:
-      DASHBOARD_PASSWORD: CAMBIA-ESTA-CLAVE
-      PUBLIC_URL: http://IP_DEL_SERVIDOR:3000
-      TZ: America/Bogota
-      LOG_LEVEL: info
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?Define DASHBOARD_PASSWORD en las variables del proyecto}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      TZ: ${TZ:-America/Bogota}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: "3000"
       DATA_DIR: /data
     volumes:
