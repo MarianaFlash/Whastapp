@@ -60,7 +60,20 @@ El script encuentra tu VPS, crea el proyecto en Docker Manager, abre el puerto 3
 firewall y te dice la URL. Si el proyecto ya existe, lo actualiza a la última imagen sin perder datos.
 Borra el token en hPanel cuando termines.
 
-### Opción C · Terminal (SSH)
+### Opción C · Una línea en la terminal (VPS Ubuntu sin Docker)
+
+Si el VPS tiene un Ubuntu normal, sin plantilla Docker, abre la **terminal del navegador** en hPanel
+(o SSH) y pega:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MarianaFlash/Whastapp/claude/sleepy-johnson-mx3qyu/scripts/install.sh | bash
+```
+
+El instalador pone Docker si falta, descarga la imagen, elige un puerto libre a partir del 3000,
+genera una contraseña y al final imprime la URL y la contraseña. Para actualizar, vuelve a pegar la
+misma línea. Para fijar tu propia contraseña: `DASHBOARD_PASSWORD='mi-clave' bash` en lugar de `bash`.
+
+### Opción D · Paso a paso por SSH
 
 Necesitas un VPS con Ubuntu y acceso SSH. Todo corre en Docker, no hace falta instalar Node.
 

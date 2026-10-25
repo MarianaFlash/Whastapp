@@ -22,7 +22,7 @@ services:
     volumes:
       - pendientes_data:/data
     ports:
-      - "3000:3000"
+      - "${HOST_PORT:-3000}:3000"
 
 volumes:
   pendientes_data:
