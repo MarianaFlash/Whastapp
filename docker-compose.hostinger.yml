@@ -1,0 +1,26 @@
+# Para el "Docker Manager" de hPanel (Hostinger) o cualquier servidor con Docker.
+# Usa la imagen ya construida, no hay que compilar nada.
+#
+# Antes de pegar este archivo cambia:
+#   - CAMBIA-ESTA-CLAVE por una contraseña larga para entrar al dashboard
+#   - IP_DEL_SERVIDOR por la IP de tu VPS (o tu dominio si usas HTTPS)
+
+services:
+  pendientes:
+    image: ghcr.io/marianaflash/whastapp:latest
+    container_name: pendientes
+    restart: unless-stopped
+    environment:
+      DASHBOARD_PASSWORD: CAMBIA-ESTA-CLAVE
+      PUBLIC_URL: http://IP_DEL_SERVIDOR:3000
+      TZ: America/Bogota
+      LOG_LEVEL: info
+      PORT: "3000"
+      DATA_DIR: /data
+    volumes:
+      - pendientes_data:/data
+    ports:
+      - "3000:3000"
+
+volumes:
+  pendientes_data:
