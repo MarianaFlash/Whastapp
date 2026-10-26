@@ -31,6 +31,8 @@ export interface Settings {
   vipGroups: string[];
   assistantName: string;
   reactionCountsAsReply: boolean;
+  /** Solo cuentan como pendientes las esperas iniciadas en los últimos N días (0 = sin límite). */
+  maxPendingAgeDays: number;
 }
 
 export const defaultSettings: Settings = {
@@ -47,6 +49,7 @@ export const defaultSettings: Settings = {
   vipGroups: ['Clientes', 'Familia', 'Mejores amigos'],
   assistantName: 'Pendientes',
   reactionCountsAsReply: true,
+  maxPendingAgeDays: 30,
 };
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -55,6 +58,12 @@ function clampMinutes(value: unknown, fallback: number): number {
   const n = Number(value);
   if (!Number.isFinite(n) || n < 1) return fallback;
   return Math.round(n);
+}
+
+function clampDays(value: unknown, fallback: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return fallback;
+  return Math.min(3650, Math.round(n));
 }
 
 function sanitizeThresholds(input: unknown, fallback: Thresholds): Thresholds {
@@ -115,5 +124,6 @@ export function sanitizeSettings(input: unknown): Settings {
       raw.reactionCountsAsReply === undefined
         ? defaultSettings.reactionCountsAsReply
         : Boolean(raw.reactionCountsAsReply),
+    maxPendingAgeDays: clampDays(raw.maxPendingAgeDays, defaultSettings.maxPendingAgeDays),
   };
 }

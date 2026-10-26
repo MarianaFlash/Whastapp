@@ -30,6 +30,7 @@ export class Notifier {
     return this.deps.repo
       .listPending()
       .map((row) => toChatView(row, settings, nowSeconds))
+      .filter((view) => view.pending)
       .sort(compareUrgency);
   }
 

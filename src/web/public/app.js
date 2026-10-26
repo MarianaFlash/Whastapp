@@ -228,7 +228,8 @@
           side = `<span class="badge ${chat.level}">${LEVEL_LABEL[chat.level]}</span><div class="wait">esperando ${fmtDuration(chat.waitSeconds)}<small>desde ${escapeHtml(fmtWhen(chat.waitingSince))}</small></div>`;
         } else {
           const last = Math.max(chat.lastIncomingAt || 0, chat.lastOutgoingAt || 0);
-          side = `<span class="badge muted">${chat.ignored ? 'Ignorado' : 'Al día'}</span><div class="wait"><small>${last ? `último ${escapeHtml(fmtWhen(last))}` : ''}</small></div>`;
+          const label = chat.ignored ? 'Ignorado' : chat.stale ? 'Antiguo' : 'Al día';
+          side = `<span class="badge muted">${label}</span><div class="wait"><small>${last ? `último ${escapeHtml(fmtWhen(last))}` : ''}</small></div>`;
         }
         const preview = chat.pending && chat.preview ? `<div class="preview">«${escapeHtml(chat.preview)}»</div>` : '';
         return `
@@ -380,6 +381,7 @@
     f['quietHours.start'].value = s.quietHours.start;
     f['quietHours.end'].value = s.quietHours.end;
     f.groupsMode.value = s.groupsMode;
+    f.maxPendingAgeDays.value = s.maxPendingAgeDays;
     f.reactionCountsAsReply.checked = s.reactionCountsAsReply;
     f.storePreview.checked = s.storePreview;
     f.vipGroups.value = s.vipGroups.join(', ');
@@ -399,6 +401,7 @@
       assistantName: f.assistantName.value,
       quietHours: { enabled: f['quietHours.enabled'].checked, start: f['quietHours.start'].value, end: f['quietHours.end'].value },
       groupsMode: f.groupsMode.value,
+      maxPendingAgeDays: Number(f.maxPendingAgeDays.value),
       reactionCountsAsReply: f.reactionCountsAsReply.checked,
       storePreview: f.storePreview.checked,
       vipGroups: list(f.vipGroups.value),
