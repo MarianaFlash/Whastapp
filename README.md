@@ -28,8 +28,10 @@ Umbrales por defecto, editables desde Ajustes:
 
 Acciones por chat: **Abrir en WhatsApp**, **✓ Listo** (no requiere respuesta), **⏰ Posponer**, **☆ Marcar VIP**, **Ignorar**.
 
-Solo cuentan las esperas iniciadas en los **últimos 30 días** (editable en Ajustes, 0 = sin límite).
-Así, al vincular, no aparecen chats viejos de hace meses; esos se ven en "Todos" con la etiqueta "Antiguo".
+Al instalar se fija una **fecha de inicio: hoy menos 30 días**. Los mensajes anteriores a esa fecha se
+ignoran por completo, para que la sincronización inicial no arrastre pendientes viejos de hace meses.
+Desde esa fecha en adelante todo cuenta sin límite: una espera de tres meses sigue siendo crítica.
+La fecha se puede ver y cambiar en Ajustes.
 
 Grupos de WhatsApp: por defecto solo cuentan si te mencionan o responden a un mensaje tuyo. Estados, canales y listas de difusión se ignoran siempre.
 

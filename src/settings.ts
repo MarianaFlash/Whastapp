@@ -31,9 +31,15 @@ export interface Settings {
   vipGroups: string[];
   assistantName: string;
   reactionCountsAsReply: boolean;
-  /** Solo cuentan como pendientes las esperas iniciadas en los últimos N días (0 = sin límite). */
-  maxPendingAgeDays: number;
+  /**
+   * Fecha "YYYY-MM-DD" desde la que se cuentan mensajes. Se fija una sola vez al instalar
+   * (hoy menos INITIAL_HISTORY_DAYS) para no arrastrar pendientes viejos del historial.
+   * Desde esa fecha en adelante todo cuenta, sin límite.
+   */
+  trackingSinceDate: string | null;
 }
+
+export const INITIAL_HISTORY_DAYS = 30;
 
 export const defaultSettings: Settings = {
   thresholds: {
@@ -49,7 +55,7 @@ export const defaultSettings: Settings = {
   vipGroups: ['Clientes', 'Familia', 'Mejores amigos'],
   assistantName: 'Pendientes',
   reactionCountsAsReply: true,
-  maxPendingAgeDays: 30,
+  trackingSinceDate: null,
 };
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -60,10 +66,18 @@ function clampMinutes(value: unknown, fallback: number): number {
   return Math.round(n);
 }
 
-function clampDays(value: unknown, fallback: number): number {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0) return fallback;
-  return Math.min(3650, Math.round(n));
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function sanitizeDate(value: unknown): string | null {
+  const text = String(value ?? '').trim();
+  if (!ISO_DATE.test(text) || Number.isNaN(Date.parse(`${text}T00:00:00Z`))) return null;
+  return text;
+}
+
+/** Unix seconds (medianoche UTC) de la fecha de inicio, o 0 si no hay. */
+export function trackingSinceSeconds(settings: Settings): number {
+  if (!settings.trackingSinceDate) return 0;
+  return Math.floor(Date.parse(`${settings.trackingSinceDate}T00:00:00Z`) / 1000);
 }
 
 function sanitizeThresholds(input: unknown, fallback: Thresholds): Thresholds {
@@ -124,6 +138,6 @@ export function sanitizeSettings(input: unknown): Settings {
       raw.reactionCountsAsReply === undefined
         ? defaultSettings.reactionCountsAsReply
         : Boolean(raw.reactionCountsAsReply),
-    maxPendingAgeDays: clampDays(raw.maxPendingAgeDays, defaultSettings.maxPendingAgeDays),
+    trackingSinceDate: sanitizeDate(raw.trackingSinceDate),
   };
 }

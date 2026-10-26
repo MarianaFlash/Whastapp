@@ -4,6 +4,8 @@ import pino from 'pino';
 import { assertConfig, config } from './config.js';
 import { Repo } from './db.js';
 import { Notifier } from './notifier.js';
+import { INITIAL_HISTORY_DAYS } from './settings.js';
+import { localDateKey } from './status.js';
 import { Tracker } from './tracker.js';
 import { createServer } from './web/server.js';
 import { WhatsAppClient } from './whatsapp.js';
@@ -14,6 +16,14 @@ const logger = pino({ level: config.logLevel });
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 const repo = new Repo(path.join(config.dataDir, 'pendientes.sqlite'));
+
+// Primera vez: fija la fecha desde la que se cuentan mensajes (hoy menos 30 días) y no se mueve más.
+if (!repo.getSettings().trackingSinceDate) {
+  const since = localDateKey(new Date(Date.now() - INITIAL_HISTORY_DAYS * 86400_000), config.timezone);
+  repo.saveSettings({ ...repo.getSettings(), trackingSinceDate: since });
+  logger.info({ since }, 'fecha de inicio fijada; lo anterior se ignora');
+}
+
 const tracker = new Tracker(repo, () => repo.getSettings());
 
 const wa = new WhatsAppClient({

@@ -105,6 +105,19 @@ describe('Tracker', () => {
     assert.equal(repo.listChats().length, 1);
   });
 
+  it('ignora por completo los mensajes anteriores a la fecha de inicio', () => {
+    settings = { ...defaultSettings, trackingSinceDate: '2026-10-01' };
+    const cutoff = Math.floor(Date.parse('2026-10-01T00:00:00Z') / 1000);
+    const old = tracker.handle(ev({ ts: cutoff - 86400, fromMe: false }));
+    assert.equal(old.skipped, true);
+    assert.equal(old.chat.waiting_since, null);
+    const recent = tracker.handle(ev({ ts: cutoff + 86400, fromMe: false }));
+    assert.equal(recent.started, true);
+    // Mucho después sigue contando: no hay ventana móvil.
+    const later = tracker.handle(ev({ jid: '573009990000@s.whatsapp.net', ts: cutoff + 400 * 86400, fromMe: false }));
+    assert.equal(later.started, true);
+  });
+
   it('un mensaje nuevo quita la posposición', () => {
     tracker.handle(ev({ ts: 1000, fromMe: false }));
     repo.setSnooze(MAMA, 999_999, 1000);

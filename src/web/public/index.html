@@ -104,7 +104,7 @@
               <option value="ignore">Ignorar grupos</option>
             </select>
           </div>
-          <div class="field"><label>Solo contar esperas de los últimos N días (0 = sin límite)</label><input type="number" min="0" max="3650" name="maxPendingAgeDays" required></div>
+          <div class="field"><label>Contar mensajes desde esta fecha (se fijó al instalar en 30 días atrás; lo anterior se ignora, lo posterior cuenta sin límite)</label><input type="date" name="trackingSinceDate"></div>
           <div class="field inline"><label>Mi reacción (👍❤️) cuenta como respuesta</label><label class="switch"><input type="checkbox" name="reactionCountsAsReply"><span></span></label></div>
           <div class="field inline"><label>Guardar vista previa del último mensaje</label><label class="switch"><input type="checkbox" name="storePreview"><span></span></label></div>
         </fieldset>

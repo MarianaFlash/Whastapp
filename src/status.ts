@@ -75,8 +75,6 @@ export interface ChatView {
   tier: Tier;
   ignored: boolean;
   pending: boolean;
-  /** La espera empezó hace más días que el límite configurado; no cuenta ni avisa. */
-  stale: boolean;
   snoozed: boolean;
   snoozedUntil: number | null;
   waitingSince: number | null;
@@ -112,9 +110,7 @@ export function waLinkFor(chat: ChatRow): string | null {
 export function toChatView(chat: ChatRow, settings: Settings, nowSeconds: number): ChatView {
   const tier: Tier = chat.vip_group ? 'vip' : 'normal';
   const snoozed = chat.snoozed_until !== null && chat.snoozed_until > nowSeconds;
-  const maxAge = settings.maxPendingAgeDays;
-  const stale = chat.waiting_since !== null && maxAge > 0 && chat.waiting_since < nowSeconds - maxAge * 86400;
-  const pending = chat.waiting_since !== null && !chat.ignored && !stale;
+  const pending = chat.waiting_since !== null && !chat.ignored;
   const waitSeconds = chat.waiting_since !== null ? Math.max(0, nowSeconds - chat.waiting_since) : 0;
   const level: Level = pending && !snoozed ? levelFor(waitSeconds, settings.thresholds[tier]) : 'ok';
   return {
@@ -125,7 +121,6 @@ export function toChatView(chat: ChatRow, settings: Settings, nowSeconds: number
     tier,
     ignored: chat.ignored === 1,
     pending,
-    stale,
     snoozed,
     snoozedUntil: chat.snoozed_until,
     waitingSince: chat.waiting_since,

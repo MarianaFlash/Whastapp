@@ -81,16 +81,11 @@ describe('toChatView + compareUrgency', () => {
     const sorted = [snoozed, normalLong, vipRed, normalCritical].sort(compareUrgency).map((v) => v.jid);
     assert.deepEqual(sorted, ['c@s.whatsapp.net', 'a@s.whatsapp.net', 'b@s.whatsapp.net', 'd@s.whatsapp.net']);
   });
-  it('las esperas más antiguas que el límite de días no cuentan como pendientes', () => {
-    const old = row({ jid: 'e@s.whatsapp.net', waiting_since: now - 40 * 86400 });
-    const recent = row({ jid: 'f@s.whatsapp.net', waiting_since: now - 10 * 86400 });
-    const oldView = toChatView(old, defaultSettings, now);
-    assert.equal(oldView.pending, false);
-    assert.equal(oldView.stale, true);
-    assert.equal(oldView.level, 'ok');
-    assert.equal(toChatView(recent, defaultSettings, now).pending, true);
-    const unlimited = { ...defaultSettings, maxPendingAgeDays: 0 };
-    assert.equal(toChatView(old, unlimited, now).pending, true);
+  it('una espera larga sigue contando sin límite de días', () => {
+    const old = row({ jid: 'e@s.whatsapp.net', waiting_since: now - 90 * 86400 });
+    const view = toChatView(old, defaultSettings, now);
+    assert.equal(view.pending, true);
+    assert.equal(view.level, 'critical');
   });
   it('genera el enlace wa.me desde el teléfono', () => {
     const view = toChatView(row({ jid: '573001112233@s.whatsapp.net' }), defaultSettings, now);

@@ -1,5 +1,5 @@
 import type { ChatRow, Repo } from './db.js';
-import type { Settings } from './settings.js';
+import { trackingSinceSeconds, type Settings } from './settings.js';
 
 /** Evento normalizado que sale del cliente de WhatsApp y entra al rastreador. */
 export interface MessageEvent {
@@ -53,6 +53,13 @@ export class Tracker {
 
   handle(ev: MessageEvent): TrackResult {
     const settings = this.getSettings();
+
+    // Mensajes anteriores a la fecha de inicio (fijada al instalar) se ignoran por completo.
+    if (ev.ts < trackingSinceSeconds(settings)) {
+      const existing = this.repo.findChatByAnyJid(ev.jid);
+      return { chat: existing ?? this.resolveChat(ev), resolved: false, started: false, skipped: true };
+    }
+
     const chat = this.resolveChat(ev);
     const result: TrackResult = { chat, resolved: false, started: false, skipped: false };
 
