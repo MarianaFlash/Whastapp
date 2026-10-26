@@ -31,7 +31,9 @@ Acciones por chat: **Abrir en WhatsApp**, **✓ Listo** (no requiere respuesta),
 Al instalar se fija una **fecha de inicio: hoy menos 30 días**. Los mensajes anteriores a esa fecha se
 ignoran por completo, para que la sincronización inicial no arrastre pendientes viejos de hace meses.
 Desde esa fecha en adelante todo cuenta sin límite: una espera de tres meses sigue siendo crítica.
-La fecha se puede ver y cambiar en Ajustes.
+La fecha se puede ver y cambiar en Ajustes. Al arrancar, y al cambiar la fecha, las esperas que
+empezaron antes se cierran solas (sin contar como respuesta), así que actualizar la herramienta
+limpia los pendientes viejos que una versión anterior hubiera cargado.
 
 Grupos de WhatsApp: por defecto solo cuentan si te mencionan o responden a un mensaje tuyo. Estados, canales y listas de difusión se ignoran siempre.
 

@@ -14,6 +14,7 @@ assertConfig();
 
 const logger = pino({ level: config.logLevel });
 const here = path.dirname(fileURLToPath(import.meta.url));
+logger.info({ version: config.version, builtAt: config.builtAt }, 'Pendientes');
 
 const repo = new Repo(path.join(config.dataDir, 'pendientes.sqlite'));
 
@@ -25,6 +26,12 @@ if (!repo.getSettings().trackingSinceDate) {
 }
 
 const tracker = new Tracker(repo, () => repo.getSettings());
+
+// Limpia esperas anteriores a la fecha de inicio (datos de versiones anteriores o fecha cambiada).
+{
+  const cleaned = tracker.applyStartDate(Math.floor(Date.now() / 1000));
+  if (cleaned > 0) logger.info({ cleaned, since: repo.getSettings().trackingSinceDate }, 'esperas anteriores a la fecha de inicio cerradas');
+}
 
 const wa = new WhatsAppClient({
   authDir: path.join(config.dataDir, 'auth'),
@@ -60,6 +67,8 @@ const app = createServer({
   publicDir: path.join(here, 'web', 'public'),
   publicUrl: config.publicUrl,
   timezone: config.timezone,
+  version: config.version,
+  builtAt: config.builtAt,
 });
 
 const server = app.listen(config.port, () => {

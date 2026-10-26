@@ -16,6 +16,9 @@ export const config = {
   /** Zona horaria para horarios silenciosos y resúmenes. */
   timezone: env('TZ', 'America/Bogota')!,
   logLevel: env('LOG_LEVEL', 'info')!,
+  /** Commit con el que se construyó la imagen (lo pone el Dockerfile). */
+  version: env('APP_VERSION', 'dev')!,
+  builtAt: env('APP_BUILT_AT', '')!,
 };
 
 export function assertConfig(): void {

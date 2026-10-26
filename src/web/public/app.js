@@ -173,6 +173,10 @@
     `;
     $('#pill-pending').textContent = c.pending;
     $('#pill-snoozed').textContent = c.snoozed;
+    const v = st.version && st.version !== 'dev' ? st.version.slice(0, 7) : st.version || '?';
+    $('#version-line').textContent =
+      `Versión ${v}${st.builtAt ? ` · construida ${st.builtAt}` : ''}` +
+      `${st.trackingSinceDate ? ` · contando desde ${st.trackingSinceDate}` : ''}`;
     document.title = c.pending ? `(${c.pending}) Pendientes` : 'Pendientes';
   }
 

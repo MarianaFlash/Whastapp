@@ -136,6 +136,38 @@ export class Tracker {
     }
   }
 
+  /**
+   * Aplica la fecha de inicio a lo que ya está guardado (historial sincronizado con una versión
+   * anterior, o fecha cambiada desde Ajustes). Las esperas que empezaron antes de la fecha se
+   * cierran sin contar como respuesta. Si en un chat directo hubo mensajes después de la fecha,
+   * la espera se reinicia desde el último de ellos. Devuelve cuántos chats se tocaron.
+   */
+  applyStartDate(now: number): number {
+    const cutoff = trackingSinceSeconds(this.getSettings());
+    if (cutoff <= 0) return 0;
+    let touched = 0;
+    this.repo.transaction(() => {
+      for (const chat of this.repo.listWaiting()) {
+        if (chat.waiting_since === null || chat.waiting_since >= cutoff) continue;
+        const keep = chat.is_group === 0 && chat.last_incoming_at !== null && chat.last_incoming_at >= cutoff;
+        if (keep) {
+          chat.waiting_since = chat.last_incoming_at;
+          chat.unanswered_count = 1;
+        } else {
+          chat.waiting_since = null;
+          chat.unanswered_count = 0;
+          chat.preview = null;
+          chat.preview_at = null;
+          chat.snoozed_until = null;
+        }
+        chat.updated_at = now;
+        this.repo.saveChat(chat);
+        touched += 1;
+      }
+    });
+    return touched;
+  }
+
   /** "Listo / no requiere respuesta": cierra la espera sin contarla como respuesta. */
   resolveManually(jid: string, now: number): ChatRow | undefined {
     const chat = this.repo.getChat(jid);

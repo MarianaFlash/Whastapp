@@ -20,6 +20,8 @@ interface Deps {
   publicDir: string;
   publicUrl: string;
   timezone: string;
+  version: string;
+  builtAt: string;
 }
 
 const COOKIE = 'pendientes_session';
@@ -149,6 +151,9 @@ export function createServer(deps: Deps): express.Express {
       now: ts,
       timezone: deps.timezone,
       publicUrl: deps.publicUrl,
+      version: deps.version,
+      builtAt: deps.builtAt,
+      trackingSinceDate: settings.trackingSinceDate,
       quietHours: isQuietHours(now, settings.quietHours, deps.timezone),
       connection: {
         status: wa.state.status,
@@ -274,8 +279,13 @@ export function createServer(deps: Deps): express.Express {
   });
 
   app.put('/api/settings', (req: Request, res: Response) => {
+    const before = repo.getSettings();
     const settings = sanitizeSettings(req.body);
     repo.saveSettings(settings);
+    if (settings.trackingSinceDate !== before.trackingSinceDate) {
+      const cleaned = tracker.applyStartDate(nowSeconds());
+      logger.info({ cleaned, since: settings.trackingSinceDate }, 'fecha de inicio cambiada desde el dashboard');
+    }
     res.json(settings);
   });
 

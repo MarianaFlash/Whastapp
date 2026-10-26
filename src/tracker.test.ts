@@ -118,6 +118,34 @@ describe('Tracker', () => {
     assert.equal(later.started, true);
   });
 
+  it('applyStartDate limpia esperas viejas ya guardadas', () => {
+    // Historial sincronizado sin fecha de inicio: tres chats con esperas antiguas.
+    tracker.handle(ev({ jid: 'viejo@s.whatsapp.net', ts: 1_000, fromMe: false, preview: 'hola?' }));
+    tracker.handle(ev({ jid: 'mixto@s.whatsapp.net', ts: 1_000, fromMe: false }));
+    tracker.handle(ev({ jid: 'mixto@s.whatsapp.net', ts: 90_000, fromMe: false, preview: 'sigues ahí?' }));
+    tracker.handle(ev({ jid: GRUPO, isGroup: true, ts: 1_000, fromMe: false, mentionsMe: true }));
+    tracker.handle(ev({ jid: GRUPO, isGroup: true, ts: 90_000, fromMe: false }));
+    tracker.handle(ev({ jid: 'nuevo@s.whatsapp.net', ts: 95_000, fromMe: false }));
+    assert.equal(repo.listWaiting().length, 4);
+
+    // Se fija la fecha de inicio: 1970-01-02 = 86 400 s.
+    settings = { ...defaultSettings, trackingSinceDate: '1970-01-02' };
+    const touched = tracker.applyStartDate(100_000);
+    assert.equal(touched, 3);
+
+    assert.equal(repo.getChat('viejo@s.whatsapp.net')?.waiting_since, null, 'sin mensajes después de la fecha: se cierra');
+    assert.equal(repo.getChat('viejo@s.whatsapp.net')?.preview, null);
+    const mixto = repo.getChat('mixto@s.whatsapp.net');
+    assert.equal(mixto?.waiting_since, 90_000, 'con mensajes después de la fecha: la espera se reinicia desde el último');
+    assert.equal(mixto?.unanswered_count, 1);
+    assert.equal(mixto?.preview, 'sigues ahí?');
+    assert.equal(repo.getChat(GRUPO)?.waiting_since, null, 'los grupos se cierran, no se sabe si la mención fue después');
+    assert.equal(repo.getChat('nuevo@s.whatsapp.net')?.waiting_since, 95_000, 'las esperas posteriores no se tocan');
+    assert.equal(repo.responsesSince(0).length, 0, 'no cuenta como respuestas');
+
+    assert.equal(tracker.applyStartDate(100_001), 0, 'volver a ejecutarlo no cambia nada');
+  });
+
   it('un mensaje nuevo quita la posposición', () => {
     tracker.handle(ev({ ts: 1000, fromMe: false }));
     repo.setSnooze(MAMA, 999_999, 1000);

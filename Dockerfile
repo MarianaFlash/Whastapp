@@ -9,9 +9,13 @@ RUN npm run build && npm prune --omit=dev
 
 # ---- runtime ----
 FROM node:22-bookworm-slim
+ARG APP_VERSION=dev
+ARG APP_BUILT_AT=
 ENV NODE_ENV=production \
     PORT=3000 \
-    DATA_DIR=/data
+    DATA_DIR=/data \
+    APP_VERSION=$APP_VERSION \
+    APP_BUILT_AT=$APP_BUILT_AT
 WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist

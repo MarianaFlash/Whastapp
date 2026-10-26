@@ -130,6 +130,11 @@ export class Repo {
       .all() as unknown as ChatRow[];
   }
 
+  /** Todos los chats con una espera abierta, incluidos los ignorados. */
+  listWaiting(): ChatRow[] {
+    return this.db.prepare('SELECT * FROM chats WHERE waiting_since IS NOT NULL').all() as unknown as ChatRow[];
+  }
+
   createChat(jid: string, isGroup: boolean, now: number, name?: string | null, altJid?: string | null): ChatRow {
     this.db
       .prepare(
