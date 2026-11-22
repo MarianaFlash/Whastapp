@@ -176,7 +176,7 @@
     const v = st.version && st.version !== 'dev' ? st.version.slice(0, 7) : st.version || '?';
     $('#version-line').textContent =
       `Versión ${v}${st.builtAt ? ` · construida ${st.builtAt}` : ''}` +
-      `${st.trackingSinceDate ? ` · contando desde ${st.trackingSinceDate}` : ''}`;
+      `${st.trackingSinceDate ? ` · contando desde ${st.trackingSinceDate}${st.trackingSinceMode === 'month' ? ' (mes en curso)' : ''}` : ''}`;
     document.title = c.pending ? `(${c.pending}) Pendientes` : 'Pendientes';
   }
 
@@ -384,11 +384,18 @@
     f['quietHours.start'].value = s.quietHours.start;
     f['quietHours.end'].value = s.quietHours.end;
     f.groupsMode.value = s.groupsMode;
+    f.trackingSinceMode.value = s.trackingSinceMode || 'month';
     f.trackingSinceDate.value = s.trackingSinceDate || '';
+    syncTrackingField();
     f.reactionCountsAsReply.checked = s.reactionCountsAsReply;
     f.storePreview.checked = s.storePreview;
     f.vipGroups.value = s.vipGroups.join(', ');
   }
+
+  function syncTrackingField() {
+    $('#field-tracking-date').hidden = form.elements.trackingSinceMode.value === 'month';
+  }
+  form.elements.trackingSinceMode.addEventListener('change', syncTrackingField);
 
   function readSettings() {
     const f = form.elements;
@@ -404,6 +411,7 @@
       assistantName: f.assistantName.value,
       quietHours: { enabled: f['quietHours.enabled'].checked, start: f['quietHours.start'].value, end: f['quietHours.end'].value },
       groupsMode: f.groupsMode.value,
+      trackingSinceMode: f.trackingSinceMode.value,
       trackingSinceDate: f.trackingSinceDate.value || null,
       reactionCountsAsReply: f.reactionCountsAsReply.checked,
       storePreview: f.storePreview.checked,

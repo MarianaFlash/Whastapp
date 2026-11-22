@@ -104,7 +104,14 @@
               <option value="ignore">Ignorar grupos</option>
             </select>
           </div>
-          <div class="field"><label>Contar mensajes desde esta fecha (se fijó al instalar en 30 días atrás; lo anterior se ignora, lo posterior cuenta sin límite)</label><input type="date" name="trackingSinceDate"></div>
+          <div class="field">
+            <label>Desde cuándo contar pendientes (lo anterior se ignora)</label>
+            <select name="trackingSinceMode">
+              <option value="month">Solo el mes en curso: desde el día 1, se reinicia cada mes</option>
+              <option value="fixed">Desde una fecha fija</option>
+            </select>
+          </div>
+          <div class="field" id="field-tracking-date"><label>Fecha fija (lo posterior cuenta sin límite)</label><input type="date" name="trackingSinceDate"></div>
           <div class="field inline"><label>Mi reacción (👍❤️) cuenta como respuesta</label><label class="switch"><input type="checkbox" name="reactionCountsAsReply"><span></span></label></div>
           <div class="field inline"><label>Guardar vista previa del último mensaje</label><label class="switch"><input type="checkbox" name="storePreview"><span></span></label></div>
         </fieldset>

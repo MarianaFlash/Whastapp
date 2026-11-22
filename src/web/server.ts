@@ -4,9 +4,9 @@ import QRCode from 'qrcode';
 import type { Logger } from 'pino';
 import type { Repo } from '../db.js';
 import type { Notifier } from '../notifier.js';
-import { sanitizeSettings } from '../settings.js';
+import { monthStartKey, sanitizeSettings } from '../settings.js';
 import { computeStats } from '../stats.js';
-import { compareUrgency, isQuietHours, toChatView, type ChatView } from '../status.js';
+import { compareUrgency, isQuietHours, localDateKey, toChatView, type ChatView } from '../status.js';
 import type { Tracker } from '../tracker.js';
 import type { WhatsAppClient } from '../whatsapp.js';
 
@@ -154,6 +154,7 @@ export function createServer(deps: Deps): express.Express {
       version: deps.version,
       builtAt: deps.builtAt,
       trackingSinceDate: settings.trackingSinceDate,
+      trackingSinceMode: settings.trackingSinceMode,
       quietHours: isQuietHours(now, settings.quietHours, deps.timezone),
       connection: {
         status: wa.state.status,
@@ -281,6 +282,11 @@ export function createServer(deps: Deps): express.Express {
   app.put('/api/settings', (req: Request, res: Response) => {
     const before = repo.getSettings();
     const settings = sanitizeSettings(req.body);
+    if (settings.trackingSinceMode === 'month') {
+      settings.trackingSinceDate = monthStartKey(localDateKey(new Date(), deps.timezone));
+    } else if (!settings.trackingSinceDate) {
+      settings.trackingSinceDate = before.trackingSinceDate;
+    }
     repo.saveSettings(settings);
     if (settings.trackingSinceDate !== before.trackingSinceDate) {
       const cleaned = tracker.applyStartDate(nowSeconds());
