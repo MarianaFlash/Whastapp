@@ -4,7 +4,7 @@ import pino from 'pino';
 import { assertConfig, config } from './config.js';
 import { Repo } from './db.js';
 import { Notifier } from './notifier.js';
-import { INITIAL_HISTORY_DAYS } from './settings.js';
+import { INITIAL_HISTORY_DAYS, nextTrackingSinceDate } from './settings.js';
 import { localDateKey } from './status.js';
 import { Tracker } from './tracker.js';
 import { createServer } from './web/server.js';
@@ -18,20 +18,32 @@ logger.info({ version: config.version, builtAt: config.builtAt }, 'Pendientes');
 
 const repo = new Repo(path.join(config.dataDir, 'pendientes.sqlite'));
 
-// Primera vez: fija la fecha desde la que se cuentan mensajes (hoy menos 30 días) y no se mueve más.
-if (!repo.getSettings().trackingSinceDate) {
-  const since = localDateKey(new Date(Date.now() - INITIAL_HISTORY_DAYS * 86400_000), config.timezone);
-  repo.saveSettings({ ...repo.getSettings(), trackingSinceDate: since });
-  logger.info({ since }, 'fecha de inicio fijada; lo anterior se ignora');
-}
-
 const tracker = new Tracker(repo, () => repo.getSettings());
 
-// Limpia esperas anteriores a la fecha de inicio (datos de versiones anteriores o fecha cambiada).
-{
-  const cleaned = tracker.applyStartDate(Math.floor(Date.now() / 1000));
-  if (cleaned > 0) logger.info({ cleaned, since: repo.getSettings().trackingSinceDate }, 'esperas anteriores a la fecha de inicio cerradas');
+/**
+ * Mantiene la fecha de inicio al día: en modo "mes en curso" la mueve al día 1 cuando cambia el mes;
+ * en modo fijo la pone una sola vez (hoy menos 30 días). Luego cierra las esperas anteriores.
+ */
+function syncStartDate(force = false): void {
+  const now = new Date();
+  const settings = repo.getSettings();
+  const next = nextTrackingSinceDate(
+    settings,
+    localDateKey(now, config.timezone),
+    localDateKey(new Date(now.getTime() - INITIAL_HISTORY_DAYS * 86400_000), config.timezone),
+  );
+  if (next) {
+    repo.saveSettings({ ...settings, trackingSinceDate: next });
+    logger.info({ since: next, mode: settings.trackingSinceMode }, 'fecha de inicio actualizada; lo anterior se ignora');
+  }
+  if (next || force) {
+    const cleaned = tracker.applyStartDate(Math.floor(now.getTime() / 1000));
+    if (cleaned > 0) logger.info({ cleaned, since: repo.getSettings().trackingSinceDate }, 'esperas anteriores a la fecha de inicio cerradas');
+  }
 }
+
+// Al arrancar siempre limpia (datos de versiones anteriores o fecha cambiada).
+syncStartDate(true);
 
 const wa = new WhatsAppClient({
   authDir: path.join(config.dataDir, 'auth'),
@@ -78,6 +90,11 @@ const server = app.listen(config.port, () => {
 wa.start().catch((err) => logger.error({ err }, 'no se pudo iniciar WhatsApp'));
 
 const tick = setInterval(() => {
+  try {
+    syncStartDate();
+  } catch (err) {
+    logger.warn({ err }, 'no se pudo actualizar la fecha de inicio');
+  }
   notifier.tick(new Date()).catch((err) => logger.warn({ err }, 'fallo en el ciclo de avisos'));
 }, 30_000);
 

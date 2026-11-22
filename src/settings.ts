@@ -5,6 +5,8 @@
 export type Tier = 'vip' | 'normal';
 export type Level = 'ok' | 'yellow' | 'red' | 'critical';
 export type GroupsMode = 'ignore' | 'mentions' | 'all';
+/** 'month': se cuenta desde el día 1 del mes en curso y avanza solo. 'fixed': fecha fija. */
+export type TrackingSinceMode = 'month' | 'fixed';
 
 export interface Thresholds {
   yellow: number;
@@ -32,11 +34,12 @@ export interface Settings {
   assistantName: string;
   reactionCountsAsReply: boolean;
   /**
-   * Fecha "YYYY-MM-DD" desde la que se cuentan mensajes. Se fija una sola vez al instalar
-   * (hoy menos INITIAL_HISTORY_DAYS) para no arrastrar pendientes viejos del historial.
-   * Desde esa fecha en adelante todo cuenta, sin límite.
+   * Fecha "YYYY-MM-DD" desde la que se cuentan mensajes. Lo anterior se ignora.
+   * En modo 'month' se recalcula sola al día 1 del mes en curso; en modo 'fixed' se fija
+   * una vez al instalar (hoy menos INITIAL_HISTORY_DAYS) o a mano desde Ajustes.
    */
   trackingSinceDate: string | null;
+  trackingSinceMode: TrackingSinceMode;
 }
 
 export const INITIAL_HISTORY_DAYS = 30;
@@ -56,6 +59,7 @@ export const defaultSettings: Settings = {
   assistantName: 'Pendientes',
   reactionCountsAsReply: true,
   trackingSinceDate: null,
+  trackingSinceMode: 'month',
 };
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -78,6 +82,21 @@ function sanitizeDate(value: unknown): string | null {
 export function trackingSinceSeconds(settings: Settings): number {
   if (!settings.trackingSinceDate) return 0;
   return Math.floor(Date.parse(`${settings.trackingSinceDate}T00:00:00Z`) / 1000);
+}
+
+/** "YYYY-MM-01" del mes de una fecha local "YYYY-MM-DD". */
+export function monthStartKey(todayKey: string): string {
+  return `${todayKey.slice(0, 7)}-01`;
+}
+
+/**
+ * Fecha de inicio que corresponde hoy según el modo. Devuelve null si no hay que cambiar nada.
+ * `todayKey` y `fallbackKey` son fechas locales "YYYY-MM-DD" (hoy, y hoy menos INITIAL_HISTORY_DAYS).
+ */
+export function nextTrackingSinceDate(settings: Settings, todayKey: string, fallbackKey: string): string | null {
+  const wanted =
+    settings.trackingSinceMode === 'month' ? monthStartKey(todayKey) : settings.trackingSinceDate ?? fallbackKey;
+  return wanted === settings.trackingSinceDate ? null : wanted;
 }
 
 function sanitizeThresholds(input: unknown, fallback: Thresholds): Thresholds {
@@ -139,5 +158,6 @@ export function sanitizeSettings(input: unknown): Settings {
         ? defaultSettings.reactionCountsAsReply
         : Boolean(raw.reactionCountsAsReply),
     trackingSinceDate: sanitizeDate(raw.trackingSinceDate),
+    trackingSinceMode: raw.trackingSinceMode === 'fixed' ? 'fixed' : 'month',
   };
 }
