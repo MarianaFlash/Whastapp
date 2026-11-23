@@ -40,7 +40,40 @@ export interface Settings {
    */
   trackingSinceDate: string | null;
   trackingSinceMode: TrackingSinceMode;
+  seller: SellerSettings;
 }
+
+/**
+ * Modo vendedor: un asistente con IA responde a quien escribe a este número
+ * (por ejemplo, el número que publicaste en los anuncios de algo que vendes).
+ */
+export interface SellerSettings {
+  enabled: boolean;
+  /** Lo que el asistente sabe del producto y cómo debe hablar. Lo escribe quien vende. */
+  instructions: string;
+  /** Número personal (solo dígitos, con indicativo) al que llegan los avisos. Vacío = chat "Tú". */
+  ownerNumber: string;
+  /** Horas que el asistente se queda callado en un chat después de que respondes tú. */
+  humanPauseHours: number;
+  /** Segundos que espera desde el último mensaje del comprador antes de contestar. */
+  replyDelaySeconds: number;
+  /** Tope de respuestas del asistente por hora, sumando todos los chats. */
+  maxRepliesPerHour: number;
+  /** Mensajes más viejos que esto (por ejemplo, al reconectar) no se contestan. */
+  maxMessageAgeHours: number;
+}
+
+export const SELLER_INSTRUCTIONS_MAX = 12_000;
+
+export const defaultSellerSettings: SellerSettings = {
+  enabled: false,
+  instructions: '',
+  ownerNumber: '',
+  humanPauseHours: 24,
+  replyDelaySeconds: 10,
+  maxRepliesPerHour: 40,
+  maxMessageAgeHours: 6,
+};
 
 export const INITIAL_HISTORY_DAYS = 30;
 
@@ -60,6 +93,7 @@ export const defaultSettings: Settings = {
   reactionCountsAsReply: true,
   trackingSinceDate: null,
   trackingSinceMode: 'month',
+  seller: defaultSellerSettings,
 };
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -123,6 +157,26 @@ function sanitizeStrings(input: unknown, fallback: string[]): string[] {
   return Array.from(new Set(list)).slice(0, 12);
 }
 
+function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+  const n = Number(value);
+  if (value === undefined || value === null || value === '' || !Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+export function sanitizeSellerSettings(input: unknown): SellerSettings {
+  const raw = (input ?? {}) as Record<string, unknown>;
+  const d = defaultSellerSettings;
+  return {
+    enabled: raw.enabled === undefined ? d.enabled : Boolean(raw.enabled),
+    instructions: String(raw.instructions ?? d.instructions).replace(/\r\n/g, '\n').trim().slice(0, SELLER_INSTRUCTIONS_MAX),
+    ownerNumber: String(raw.ownerNumber ?? d.ownerNumber).replace(/\D/g, '').slice(0, 15),
+    humanPauseHours: clampNumber(raw.humanPauseHours, d.humanPauseHours, 1, 24 * 30),
+    replyDelaySeconds: clampNumber(raw.replyDelaySeconds, d.replyDelaySeconds, 2, 120),
+    maxRepliesPerHour: clampNumber(raw.maxRepliesPerHour, d.maxRepliesPerHour, 1, 200),
+    maxMessageAgeHours: clampNumber(raw.maxMessageAgeHours, d.maxMessageAgeHours, 1, 72),
+  };
+}
+
 /** Mezcla lo que llega del dashboard con los valores por defecto y descarta basura. */
 export function sanitizeSettings(input: unknown): Settings {
   const raw = (input ?? {}) as Record<string, unknown>;
@@ -159,5 +213,6 @@ export function sanitizeSettings(input: unknown): Settings {
         : Boolean(raw.reactionCountsAsReply),
     trackingSinceDate: sanitizeDate(raw.trackingSinceDate),
     trackingSinceMode: raw.trackingSinceMode === 'fixed' ? 'fixed' : 'month',
+    seller: sanitizeSellerSettings(raw.seller),
   };
 }

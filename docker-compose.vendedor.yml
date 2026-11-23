@@ -1,0 +1,36 @@
+# Segunda copia de Pendientes con el modo vendedor, para el número que publicas en tus anuncios.
+# Corre al lado de tu Pendientes personal sin tocarlo: otro contenedor, otro puerto y otros datos.
+#
+# En el Docker Manager de hPanel crea un proyecto NUEVO (por ejemplo "vendedor"), pega este
+# archivo y define estas variables en el panel lateral:
+#   DASHBOARD_PASSWORD  contraseña larga para este dashboard (obligatoria)
+#   ANTHROPIC_API_KEY   clave de la API de Anthropic (obligatoria para que responda)
+#   PUBLIC_URL          http://IP_DEL_SERVIDOR:3001  (va en los avisos que te llegan)
+#   HOST_PORT           puerto del servidor, por defecto 3001
+#   ANTHROPIC_MODEL     opcional, por defecto claude-opus-5-5
+#
+# Después entra al dashboard, escanea el QR desde el WhatsApp Business del número de ventas
+# y en Ajustes → Modo vendedor pega tus instrucciones y activa las respuestas.
+
+services:
+  vendedor:
+    image: ghcr.io/marianaflash/whastapp:latest
+    container_name: pendientes-vendedor
+    restart: unless-stopped
+    environment:
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?Define DASHBOARD_PASSWORD en las variables del proyecto}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Define ANTHROPIC_API_KEY en las variables del proyecto}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5-5}
+      ANTHROPIC_EFFORT: ${ANTHROPIC_EFFORT:-low}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3001}
+      TZ: ${TZ:-America/Bogota}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: "3000"
+      DATA_DIR: /data
+    volumes:
+      - vendedor_data:/data
+    ports:
+      - "${HOST_PORT:-3001}:3000"
+
+volumes:
+  vendedor_data:

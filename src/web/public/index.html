@@ -41,6 +41,11 @@
       <p id="conn-detail"></p>
     </section>
 
+    <section class="panel warn" id="seller-panel" hidden>
+      <h2>🤖 El modo vendedor está activado pero no puede responder</h2>
+      <p id="seller-problem"></p>
+    </section>
+
     <section class="stats" id="stats"></section>
 
     <div class="toolbar">
@@ -62,6 +67,22 @@
     <form method="dialog" id="form-settings">
       <div class="dlg-head"><h2>Ajustes</h2><button class="btn icon" type="button" data-close>✕</button></div>
       <div class="dlg-body">
+        <fieldset id="fs-seller">
+          <legend>🤖 Modo vendedor (respuestas automáticas con IA)</legend>
+          <p class="hint" style="margin-top:0">El asistente contesta a quien escriba a este número usando tus instrucciones. Si respondes tú desde el teléfono, se calla en ese chat. Las ofertas, las citas y lo que no sepa te los pasa con un aviso a tu WhatsApp.</p>
+          <div class="field inline"><label for="seller-enabled">Responder automáticamente</label><label class="switch"><input type="checkbox" id="seller-enabled" name="seller.enabled"><span></span></label></div>
+          <p class="hint seller-status" id="seller-status"></p>
+          <div class="field"><label for="seller-instructions">Instrucciones: qué vendes, precio, ubicación, horarios y reglas</label><textarea id="seller-instructions" name="seller.instructions" rows="12" maxlength="12000" placeholder="Ej: Vendo un carro modelo 2021, automático, 32.000 km. Precio: … Se muestra con cita en …"></textarea></div>
+          <div class="field"><label for="seller-owner">Tu número personal para los avisos (con indicativo, sin +)</label><input type="tel" id="seller-owner" name="seller.ownerNumber" inputmode="numeric" placeholder="573001234567"></div>
+          <div class="grid-3">
+            <div class="field"><label for="seller-pause">Pausa si respondes tú (horas)</label><input type="number" min="1" id="seller-pause" name="seller.humanPauseHours"></div>
+            <div class="field"><label for="seller-delay">Espera antes de responder (seg.)</label><input type="number" min="2" max="120" id="seller-delay" name="seller.replyDelaySeconds"></div>
+            <div class="field"><label for="seller-max">Tope de respuestas por hora</label><input type="number" min="1" max="200" id="seller-max" name="seller.maxRepliesPerHour"></div>
+          </div>
+          <div class="field"><label for="seller-test-msg">Probar sin enviar nada: escribe como si fueras un comprador</label><input type="text" id="seller-test-msg" maxlength="1000" placeholder="Hola, ¿todavía está disponible? ¿Es negociable?"></div>
+          <div class="choices"><button class="btn small" type="button" id="btn-seller-test">Ver qué respondería</button></div>
+          <div class="seller-test-out" id="seller-test-out" hidden></div>
+        </fieldset>
         <fieldset>
           <legend>Umbrales ⭐ VIP (minutos esperando)</legend>
           <div class="grid-3">
@@ -162,6 +183,12 @@
       </div>
     </div>
     <div class="dlg-foot"><button class="btn" type="button" data-close>Cancelar</button></div>
+  </dialog>
+
+  <dialog id="dlg-convo">
+    <div class="dlg-head"><h2 id="convo-title">Conversación</h2><button class="btn icon" type="button" data-close>✕</button></div>
+    <div class="dlg-body"><div class="convo" id="convo"></div></div>
+    <div class="dlg-foot"><button class="btn" type="button" data-close>Cerrar</button></div>
   </dialog>
 
   <div class="toast" id="toast"></div>

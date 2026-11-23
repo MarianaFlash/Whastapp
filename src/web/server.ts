@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import type { Logger } from 'pino';
 import type { Repo } from '../db.js';
 import type { Notifier } from '../notifier.js';
+import { sellerChatView, type Seller } from '../seller.js';
 import { monthStartKey, sanitizeSettings } from '../settings.js';
 import { computeStats } from '../stats.js';
 import { compareUrgency, isQuietHours, localDateKey, toChatView, type ChatView } from '../status.js';
@@ -15,6 +16,7 @@ interface Deps {
   tracker: Tracker;
   wa: WhatsAppClient;
   notifier: Notifier;
+  seller: Seller;
   logger: Logger;
   password: string;
   publicDir: string;
@@ -60,7 +62,7 @@ function nowSeconds(): number {
 }
 
 export function createServer(deps: Deps): express.Express {
-  const { repo, tracker, wa, notifier, logger } = deps;
+  const { repo, tracker, wa, notifier, seller, logger } = deps;
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', true);
@@ -174,6 +176,7 @@ export function createServer(deps: Deps): express.Express {
         snoozed: views.length - active.length,
       },
       stats: computeStats(repo, now, deps.timezone),
+      seller: seller.status(),
     });
   });
 
@@ -200,6 +203,11 @@ export function createServer(deps: Deps): express.Express {
         views = views.filter((v) => !v.ignored);
     }
     if (q) views = views.filter((v) => v.name.toLowerCase().includes(q) || (v.preview ?? '').toLowerCase().includes(q));
+    if (settings.seller.enabled) {
+      views = views.map((v) =>
+        v.isGroup ? v : { ...v, seller: sellerChatView(repo.getSellerChat(v.jid), ts) },
+      );
+    }
     views.sort((a, b) => {
       if (a.pending !== b.pending) return a.pending ? -1 : 1;
       if (a.pending) return compareUrgency(a, b);
@@ -275,13 +283,55 @@ export function createServer(deps: Deps): express.Express {
     respondChat(res, jid);
   });
 
+  // ---------- modo vendedor ----------
+
+  app.post('/api/chats/:jid/seller', (req: Request, res: Response) => {
+    const jid = String(req.params.jid);
+    const action = String((req.body as { action?: unknown })?.action ?? '');
+    if (!repo.getChat(jid)) {
+      res.status(404).json({ error: 'Chat no encontrado' });
+      return;
+    }
+    if (action === 'pause') seller.pause(jid);
+    else if (action === 'resume') seller.resume(jid);
+    else {
+      res.status(400).json({ error: 'Acción no válida' });
+      return;
+    }
+    res.json(sellerChatView(repo.getSellerChat(jid), nowSeconds()));
+  });
+
+  app.get('/api/chats/:jid/messages', (req: Request, res: Response) => {
+    const jid = String(req.params.jid);
+    const rows = repo.recentSellerMessages(jid, 60);
+    res.json(rows.map((r) => ({ role: r.role, text: r.text, ts: r.ts })));
+  });
+
+  app.post('/api/seller/preview', async (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as { message?: unknown; instructions?: unknown };
+    const message = String(body.message ?? '').trim().slice(0, 1000);
+    if (!message) {
+      res.status(400).json({ error: 'Escribe un mensaje de prueba' });
+      return;
+    }
+    const instructions = typeof body.instructions === 'string' ? body.instructions : undefined;
+    try {
+      res.json(await seller.preview(message, instructions));
+    } catch (err) {
+      logger.warn({ err }, 'modo vendedor: falló la prueba');
+      res.status(503).json({ error: (err as Error).message });
+    }
+  });
+
   app.get('/api/settings', (_req: Request, res: Response) => {
     res.json(repo.getSettings());
   });
 
   app.put('/api/settings', (req: Request, res: Response) => {
     const before = repo.getSettings();
-    const settings = sanitizeSettings(req.body);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    // Si el formulario no manda la sección del modo vendedor, se conserva la que había.
+    const settings = sanitizeSettings(body.seller === undefined ? { ...body, seller: before.seller } : body);
     if (settings.trackingSinceMode === 'month') {
       settings.trackingSinceDate = monthStartKey(localDateKey(new Date(), deps.timezone));
     } else if (!settings.trackingSinceDate) {

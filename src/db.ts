@@ -77,7 +77,61 @@ CREATE TABLE IF NOT EXISTS processed (
   id TEXT PRIMARY KEY,
   ts INTEGER NOT NULL
 );
+
+-- Modo vendedor: texto de las conversaciones (solo se guarda con el modo activo).
+CREATE TABLE IF NOT EXISTS seller_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  jid TEXT NOT NULL,
+  msg_id TEXT,
+  role TEXT NOT NULL,
+  text TEXT NOT NULL,
+  ts INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_seller_messages_jid ON seller_messages(jid, ts);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_seller_messages_msg ON seller_messages(jid, msg_id) WHERE msg_id IS NOT NULL;
+
+-- Modo vendedor: estado del asistente en cada chat.
+CREATE TABLE IF NOT EXISTS seller_chats (
+  jid TEXT PRIMARY KEY,
+  reply_jid TEXT,
+  paused_until INTEGER,
+  pause_reason TEXT,
+  handoff_summary TEXT,
+  handoff_at INTEGER,
+  bot_replies INTEGER NOT NULL DEFAULT 0,
+  last_bot_at INTEGER,
+  updated_at INTEGER NOT NULL
+);
 `;
+
+export type SellerRole = 'buyer' | 'bot' | 'owner';
+export type PauseReason = 'handoff' | 'owner' | 'manual' | 'error' | 'limit';
+
+export interface SellerMessageRow {
+  id: number;
+  jid: string;
+  msg_id: string | null;
+  role: SellerRole;
+  text: string;
+  ts: number;
+}
+
+export interface SellerChatRow {
+  jid: string;
+  reply_jid: string | null;
+  paused_until: number | null;
+  pause_reason: PauseReason | null;
+  handoff_summary: string | null;
+  handoff_at: number | null;
+  bot_replies: number;
+  last_bot_at: number | null;
+  updated_at: number;
+}
+
+/** Tope de caracteres por mensaje guardado: suficiente para un chat y evita abusos. */
+const SELLER_TEXT_MAX = 2000;
+/** Hasta cuándo dura una pausa "indefinida" (se quita desde el dashboard). */
+export const LONG_PAUSE_SECONDS = 30 * 86400;
 
 export class Repo {
   readonly db: DatabaseSync;
@@ -225,6 +279,81 @@ export class Repo {
 
   pruneProcessed(olderThanSeconds: number): void {
     this.db.prepare('DELETE FROM processed WHERE ts < ?').run(olderThanSeconds);
+  }
+
+  // ---------- modo vendedor ----------
+
+  /** Guarda un mensaje de la conversación. Devuelve false si ese id ya estaba guardado. */
+  addSellerMessage(jid: string, role: SellerRole, text: string, ts: number, msgId?: string | null): boolean {
+    const result = this.db
+      .prepare('INSERT OR IGNORE INTO seller_messages (jid, msg_id, role, text, ts) VALUES (?, ?, ?, ?, ?)')
+      .run(jid, msgId ?? null, role, text.slice(0, SELLER_TEXT_MAX), ts);
+    return result.changes > 0;
+  }
+
+  /** Últimos `limit` mensajes del chat, del más viejo al más nuevo. */
+  recentSellerMessages(jid: string, limit: number): SellerMessageRow[] {
+    const rows = this.db
+      .prepare('SELECT * FROM seller_messages WHERE jid = ? ORDER BY ts DESC, id DESC LIMIT ?')
+      .all(jid, limit) as unknown as SellerMessageRow[];
+    return rows.reverse();
+  }
+
+  getSellerChat(jid: string): SellerChatRow | undefined {
+    return this.db.prepare('SELECT * FROM seller_chats WHERE jid = ?').get(jid) as SellerChatRow | undefined;
+  }
+
+  listSellerChats(): SellerChatRow[] {
+    return this.db.prepare('SELECT * FROM seller_chats ORDER BY updated_at DESC').all() as unknown as SellerChatRow[];
+  }
+
+  /** Crea el estado del chat si no existe y recuerda a qué jid responder. */
+  touchSellerChat(jid: string, replyJid: string | null, now: number): SellerChatRow {
+    this.db
+      .prepare(
+        `INSERT INTO seller_chats (jid, reply_jid, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(jid) DO UPDATE SET reply_jid = COALESCE(excluded.reply_jid, seller_chats.reply_jid),
+           updated_at = MAX(seller_chats.updated_at, excluded.updated_at)`,
+      )
+      .run(jid, replyJid, now);
+    return this.getSellerChat(jid)!;
+  }
+
+  /** Pausa (o reanuda con until = null) al asistente en un chat. */
+  setSellerPause(
+    jid: string,
+    until: number | null,
+    reason: PauseReason | null,
+    now: number,
+    summary?: string | null,
+  ): boolean {
+    this.touchSellerChat(jid, null, now);
+    const handoff = reason === 'handoff';
+    const result = this.db
+      .prepare(
+        `UPDATE seller_chats SET paused_until = ?, pause_reason = ?, updated_at = ?,
+           handoff_summary = CASE WHEN ? THEN ? WHEN ? IS NULL THEN NULL ELSE handoff_summary END,
+           handoff_at = CASE WHEN ? THEN ? WHEN ? IS NULL THEN NULL ELSE handoff_at END
+         WHERE jid = ?`,
+      )
+      .run(until, reason, now, handoff ? 1 : 0, summary ?? null, until, handoff ? 1 : 0, now, until, jid);
+    return result.changes > 0;
+  }
+
+  recordBotReply(jid: string, now: number): void {
+    this.db
+      .prepare('UPDATE seller_chats SET bot_replies = bot_replies + 1, last_bot_at = ?, updated_at = ? WHERE jid = ?')
+      .run(now, now, jid);
+  }
+
+  /** Cuántas respuestas mandó el asistente desde `since` (todas o de un chat). */
+  countBotMessagesSince(since: number, jid?: string): number {
+    const row = (
+      jid
+        ? this.db.prepare("SELECT COUNT(*) AS n FROM seller_messages WHERE role = 'bot' AND ts >= ? AND jid = ?").get(since, jid)
+        : this.db.prepare("SELECT COUNT(*) AS n FROM seller_messages WHERE role = 'bot' AND ts >= ?").get(since)
+    ) as { n: number };
+    return Number(row.n);
   }
 
   // ---------- settings ----------

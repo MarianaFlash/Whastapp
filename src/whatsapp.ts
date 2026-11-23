@@ -2,6 +2,7 @@ import makeWASocket, {
   Browsers,
   DisconnectReason,
   fetchLatestBaileysVersion,
+  generateMessageIDV2,
   getContentType,
   isJidBroadcast,
   isJidGroup,
@@ -128,6 +129,45 @@ function previewOf(content: proto.IMessage, type: keyof proto.IMessage): string 
   }
 }
 
+/**
+ * Texto completo para el asistente del modo vendedor. Los adjuntos que no puede leer
+ * se convierten en una etiqueta entre corchetes, con el pie de foto si lo hay.
+ */
+function textOf(content: proto.IMessage, type: keyof proto.IMessage): string {
+  const value = content[type] as Record<string, unknown> | string | undefined;
+  const caption = typeof value === 'object' && value ? String(value.caption ?? '').trim() : '';
+  const withCaption = (label: string) => (caption ? `${label} ${caption}` : label);
+  switch (type) {
+    case 'conversation':
+      return String(content.conversation ?? '');
+    case 'extendedTextMessage':
+      return content.extendedTextMessage?.text ?? '';
+    case 'imageMessage':
+      return withCaption('[Foto]');
+    case 'videoMessage':
+    case 'ptvMessage':
+      return withCaption('[Video]');
+    case 'audioMessage':
+      return content.audioMessage?.ptt ? '[Nota de voz]' : '[Audio]';
+    case 'documentMessage':
+      return withCaption(`[Documento: ${content.documentMessage?.fileName ?? 'sin nombre'}]`);
+    case 'stickerMessage':
+    case 'lottieStickerMessage':
+      return '[Sticker]';
+    case 'locationMessage':
+    case 'liveLocationMessage':
+      return '[Ubicación]';
+    case 'contactMessage':
+    case 'contactsArrayMessage':
+      return '[Contacto]';
+    default:
+      return '[Otro tipo de mensaje]';
+  }
+}
+
+/** Cuántos ids de mensajes enviados por la app se recuerdan para reconocer su eco. */
+const SENT_IDS_MAX = 500;
+
 export class WhatsAppClient extends EventEmitter {
   readonly state: WAState = {
     status: 'starting',
@@ -145,6 +185,7 @@ export class WhatsAppClient extends EventEmitter {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private readonly names = new Map<string, { name: string; saved: boolean }>();
   private readonly groupLookups = new Set<string>();
+  private readonly sentIds = new Set<string>();
   private myPn: string | null = null;
   private myLid: string | null = null;
 
@@ -198,9 +239,35 @@ export class WhatsAppClient extends EventEmitter {
     this.scheduleReconnect(1000);
   }
 
-  async sendText(jid: string, text: string): Promise<void> {
+  /**
+   * Envía un texto y devuelve el id del mensaje. El id se genera aquí y se recuerda antes de
+   * enviar, así el eco que llega por `messages.upsert` se reconoce como enviado por la app
+   * y no como escrito por ti desde el teléfono.
+   */
+  async sendText(jid: string, text: string): Promise<string> {
     if (!this.sock || !this.isConnected()) throw new Error('WhatsApp no está conectado');
-    await this.sock.sendMessage(jid, { text });
+    const messageId = generateMessageIDV2(this.sock.user?.id);
+    this.rememberSent(messageId);
+    await this.sock.sendMessage(jid, { text }, { messageId });
+    return messageId;
+  }
+
+  /** Muestra "escribiendo…" (o lo quita con 'paused'). Si falla no pasa nada. */
+  async sendTyping(jid: string, state: 'composing' | 'paused'): Promise<void> {
+    if (!this.sock || !this.isConnected()) return;
+    try {
+      await this.sock.sendPresenceUpdate(state, jid);
+    } catch (err) {
+      this.opts.logger.debug({ err, jid }, 'no se pudo enviar el estado escribiendo');
+    }
+  }
+
+  private rememberSent(id: string): void {
+    this.sentIds.add(id);
+    if (this.sentIds.size > SENT_IDS_MAX) {
+      const oldest = this.sentIds.values().next().value;
+      if (oldest !== undefined) this.sentIds.delete(oldest);
+    }
   }
 
   async sendToSelf(text: string): Promise<void> {
@@ -330,7 +397,7 @@ export class WhatsAppClient extends EventEmitter {
       const sorted = [...messages].sort((a, b) => toSeconds(a.messageTimestamp) - toSeconds(b.messageTimestamp));
       this.state.historyMessages += sorted.length;
       const run = () => {
-        for (const msg of sorted) this.processMessage(msg);
+        for (const msg of sorted) this.processMessage(msg, false);
       };
       if (this.opts.batch) this.opts.batch(run);
       else run();
@@ -340,7 +407,7 @@ export class WhatsAppClient extends EventEmitter {
     });
 
     sock.ev.on('messages.upsert', ({ messages }) => {
-      for (const msg of messages) this.processMessage(msg);
+      for (const msg of messages) this.processMessage(msg, true);
     });
   }
 
@@ -390,16 +457,16 @@ export class WhatsAppClient extends EventEmitter {
     return { jid: remote, altJid: null };
   }
 
-  private processMessage(msg: WAMessage): void {
+  private processMessage(msg: WAMessage, live: boolean): void {
     try {
-      const ev = this.toEvent(msg);
+      const ev = this.toEvent(msg, live);
       if (ev) this.opts.onMessage(ev);
     } catch (err) {
       this.opts.logger.warn({ err, id: msg.key?.id }, 'no se pudo procesar un mensaje');
     }
   }
 
-  private toEvent(msg: WAMessage): MessageEvent | null {
+  private toEvent(msg: WAMessage, live: boolean): MessageEvent | null {
     const key = msg.key;
     if (!key?.remoteJid || !key.id) return null;
     const remote = key.remoteJid;
@@ -423,8 +490,11 @@ export class WhatsAppClient extends EventEmitter {
     if (!name && !isGroup && !fromMe && msg.pushName) name = msg.pushName;
     if (!name && isGroup) this.lookupGroupName(jid);
 
+    const byApp = fromMe && this.sentIds.has(key.id);
+    const remoteJid = isGroup ? remote : jidNormalizedUser(remote);
+
     if (type === 'reactionMessage') {
-      return { id, jid, altJid, isGroup, fromMe, ts, kind: 'reaction', name };
+      return { id, jid, altJid, isGroup, fromMe, ts, kind: 'reaction', name, live, byApp, remoteJid };
     }
 
     const value = content[type] as MessageValue | undefined;
@@ -448,6 +518,10 @@ export class WhatsAppClient extends EventEmitter {
       name,
       mentionsMe,
       quotesMe,
+      text: textOf(content, type).trim() || null,
+      live,
+      byApp,
+      remoteJid,
     };
   }
 
