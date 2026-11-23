@@ -168,10 +168,17 @@ Viene **apagado**. Solo guarda el texto de las conversaciones mientras está act
 Usa una **segunda copia** con su propio número (por ejemplo una eSIM con WhatsApp Business), así tu
 WhatsApp personal no se toca:
 
-1. En hPanel → Docker Manager crea un proyecto nuevo y pega `docker-compose.vendedor.yml`.
-2. Define `DASHBOARD_PASSWORD`, `ANTHROPIC_API_KEY` y `PUBLIC_URL` (`http://IP_DEL_SERVIDOR:3001`).
-   Abre el puerto `3001` en el firewall si lo tienes activo.
-3. Entra a `http://IP_DEL_SERVIDOR:3001` y escanea el QR desde **WhatsApp Business del número de
+1. Abre la **terminal del navegador** del VPS en hPanel y pega, con tu clave de Anthropic:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/MarianaFlash/Whastapp/claude/sleepy-johnson-mx3qyu/scripts/install.sh | PENDIENTES_MODO=vendedor ANTHROPIC_API_KEY='tu-clave' bash
+   ```
+
+   Queda en `/opt/pendientes-vendedor`, en el puerto `3001` (o el siguiente libre), y al final imprime
+   la dirección y la contraseña. Si tu VPS tiene Docker Manager, también puedes pegar
+   `docker-compose.vendedor.yml` en un proyecto nuevo y definir ahí las variables.
+2. Abre ese puerto en el firewall si tienes uno activo.
+3. Entra a la dirección que imprimió el instalador y escanea el QR desde **WhatsApp Business del número de
    ventas** → Dispositivos vinculados. El número sigue funcionando normal en tu celular.
 4. En **Ajustes → Modo vendedor** pega las instrucciones, pon tu número personal para los avisos,
    prueba un par de mensajes y activa **Responder automáticamente**.
