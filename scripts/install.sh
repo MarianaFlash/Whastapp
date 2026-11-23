@@ -83,7 +83,8 @@ IP="$(curl -fsSL --max-time 5 https://api.ipify.org 2>/dev/null || hostname -I |
 NEW=0
 if [ ! -f .env ]; then
   NEW=1
-  PASS="${DASHBOARD_PASSWORD:-$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)}"
+  # Con pipefail, tr termina por SIGPIPE cuando head ya tiene sus 20 caracteres; || true evita que eso aborte el script.
+  PASS="${DASHBOARD_PASSWORD:-$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20 || true)}"
   umask 077
   cat > .env <<EOF
 DASHBOARD_PASSWORD=${PASS}
