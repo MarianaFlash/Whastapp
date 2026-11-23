@@ -15,6 +15,14 @@
   };
 
   const LEVEL_LABEL = { ok: 'Al día', yellow: 'Atención', red: 'Urgente', critical: 'Crítico' };
+  const PAUSE_LABEL = {
+    handoff: 'te pasó el chat',
+    owner: 'respondiste tú',
+    manual: 'lo pausaste',
+    error: 'no pudo responder',
+    limit: 'tope de respuestas',
+  };
+  const ROLE_LABEL = { buyer: 'Comprador', bot: 'Asistente', owner: 'Tú' };
   const CONN_LABEL = {
     starting: 'Iniciando…',
     qr: 'Escanea el QR',
@@ -171,6 +179,10 @@
       <div class="tile"><div class="label">Respondidos hoy</div><div class="value">${s.today.answered}</div><div class="sub">${s.week.answered} en 7 días</div></div>
       <div class="tile"><div class="label">Tu tiempo de respuesta</div><div class="value" style="font-size:20px">${avg === null ? '—' : fmtDuration(avg)}</div><div class="sub">${s.week.avgWaitSeconds === null ? 'promedio de hoy' : `7 días: ${fmtDuration(s.week.avgWaitSeconds)}`}</div></div>
     `;
+    const sellerStatus = st.seller;
+    const sellerBroken = Boolean(sellerStatus?.enabled && sellerStatus.problem);
+    $('#seller-panel').hidden = !sellerBroken;
+    if (sellerBroken) $('#seller-problem').textContent = sellerStatus.problem;
     $('#pill-pending').textContent = c.pending;
     $('#pill-snoozed').textContent = c.snoozed;
     const v = st.version && st.version !== 'dev' ? st.version.slice(0, 7) : st.version || '?';
@@ -187,6 +199,14 @@
       ? `<a class="btn small primary" href="${chat.waLink}" target="_blank" rel="noopener">Abrir en WhatsApp</a>`
       : `<button class="btn small primary" data-action="noLink">Abrir en WhatsApp</button>`;
     actions.push(open);
+    if (chat.seller) {
+      actions.push(`<button class="btn small" data-action="convo">💬 Conversación</button>`);
+      actions.push(
+        chat.seller.state === 'paused'
+          ? `<button class="btn small" data-action="resumeBot" title="El asistente vuelve a responder cuando el comprador escriba">🤖 Reactivar asistente</button>`
+          : `<button class="btn small" data-action="pauseBot" title="El asistente deja de responder en este chat">✋ Atender yo</button>`,
+      );
+    }
     if (chat.pending) actions.push(`<button class="btn small" data-action="resolve" title="Quitar de la lista sin contar como respuesta">✓ Listo</button>`);
     if (chat.pending && !chat.snoozed) actions.push(`<button class="btn small" data-action="snooze">⏰ Posponer</button>`);
     if (chat.snoozed) actions.push(`<button class="btn small" data-action="unsnooze">Quitar posposición</button>`);
@@ -225,6 +245,13 @@
         if (chat.vipGroup) tags.push(`<span class="tag vip">⭐ ${escapeHtml(chat.vipGroup)}</span>`);
         if (chat.isGroup) tags.push(`<span class="tag">Grupo</span>`);
         if (chat.pending && chat.unansweredCount > 1) tags.push(`<span class="tag">${chat.unansweredCount} mensajes</span>`);
+        if (chat.seller) {
+          tags.push(
+            chat.seller.state === 'paused'
+              ? `<span class="tag human">✋ Tú · ${escapeHtml(PAUSE_LABEL[chat.seller.reason] || 'en pausa')}</span>`
+              : `<span class="tag bot">🤖 Asistente</span>`,
+          );
+        }
         let side;
         if (chat.snoozed) {
           side = `<span class="badge muted">Pospuesto</span><div class="wait">hasta ${escapeHtml(fmtWhen(chat.snoozedUntil))}<small>esperando ${fmtDuration(chat.waitSeconds)}</small></div>`;
@@ -234,7 +261,8 @@
           const last = Math.max(chat.lastIncomingAt || 0, chat.lastOutgoingAt || 0);
           side = `<span class="badge muted">${chat.ignored ? 'Ignorado' : 'Al día'}</span><div class="wait"><small>${last ? `último ${escapeHtml(fmtWhen(last))}` : ''}</small></div>`;
         }
-        const preview = chat.pending && chat.preview ? `<div class="preview">«${escapeHtml(chat.preview)}»</div>` : '';
+        const summary = chat.seller?.summary ? `<div class="preview handoff">📝 ${escapeHtml(chat.seller.summary)}</div>` : '';
+        const preview = (chat.pending && chat.preview ? `<div class="preview">«${escapeHtml(chat.preview)}»</div>` : '') + summary;
         return `
           <li class="${classes.join(' ')}" data-jid="${escapeHtml(chat.jid)}">
             <div class="avatar">${escapeHtml(initial(chat.name))}</div>
@@ -282,6 +310,17 @@
           await post(`/api/chats/${encodeURIComponent(jid)}/ignore`, { ignored: false });
           toast('Chat visible de nuevo');
           break;
+        case 'convo':
+          openConversation(jid);
+          return;
+        case 'pauseBot':
+          await post(`/api/chats/${encodeURIComponent(jid)}/seller`, { action: 'pause' });
+          toast('El asistente ya no responde en este chat. Lo atiendes tú.');
+          break;
+        case 'resumeBot':
+          await post(`/api/chats/${encodeURIComponent(jid)}/seller`, { action: 'resume' });
+          toast('Asistente reactivado. Responde cuando el comprador vuelva a escribir.');
+          break;
         case 'noLink':
           toast('Este chat no muestra número. Búscalo en WhatsApp por su nombre.');
           return;
@@ -324,6 +363,27 @@
       toast(err.message);
     }
   });
+
+  // Conversación del modo vendedor
+  async function openConversation(jid) {
+    const chat = chatByJid(jid);
+    $('#convo-title').textContent = `💬 ${chat?.name ?? 'Conversación'}`;
+    $('#convo').innerHTML = '<p class="hint">Cargando…</p>';
+    $('#dlg-convo').showModal();
+    try {
+      const messages = await api(`/api/chats/${encodeURIComponent(jid)}/messages`);
+      $('#convo').innerHTML = messages.length
+        ? messages
+            .map(
+              (m) =>
+                `<div class="msg ${escapeHtml(m.role)}">${escapeHtml(m.text)}<small>${escapeHtml(ROLE_LABEL[m.role] || m.role)} · ${escapeHtml(fmtWhen(m.ts))}</small></div>`,
+            )
+            .join('')
+        : '<p class="hint">Todavía no hay mensajes guardados en este chat. Se guardan desde que activas el modo vendedor.</p>';
+    } catch (err) {
+      $('#convo').innerHTML = `<p class="hint">${escapeHtml(err.message)}</p>`;
+    }
+  }
 
   // VIP
   async function openVipDialog(jid) {
@@ -390,6 +450,31 @@
     f.reactionCountsAsReply.checked = s.reactionCountsAsReply;
     f.storePreview.checked = s.storePreview;
     f.vipGroups.value = s.vipGroups.join(', ');
+    const seller = s.seller || {};
+    f['seller.enabled'].checked = Boolean(seller.enabled);
+    f['seller.instructions'].value = seller.instructions || '';
+    f['seller.ownerNumber'].value = seller.ownerNumber || '';
+    f['seller.humanPauseHours'].value = seller.humanPauseHours ?? 24;
+    f['seller.replyDelaySeconds'].value = seller.replyDelaySeconds ?? 10;
+    f['seller.maxRepliesPerHour'].value = seller.maxRepliesPerHour ?? 40;
+    renderSellerStatus();
+    $('#seller-test-out').hidden = true;
+  }
+
+  function renderSellerStatus() {
+    const el = $('#seller-status');
+    const st = state.status?.seller;
+    if (!st) {
+      el.textContent = '';
+      return;
+    }
+    if (st.problem) {
+      el.className = 'hint seller-status problem';
+      el.textContent = st.problem;
+    } else {
+      el.className = 'hint seller-status ok';
+      el.textContent = st.enabled ? `Respondiendo con ${st.model}.` : `Listo para activar (modelo ${st.model}).`;
+    }
   }
 
   function syncTrackingField() {
@@ -416,6 +501,15 @@
       reactionCountsAsReply: f.reactionCountsAsReply.checked,
       storePreview: f.storePreview.checked,
       vipGroups: list(f.vipGroups.value),
+      seller: {
+        ...(state.settings?.seller || {}),
+        enabled: f['seller.enabled'].checked,
+        instructions: f['seller.instructions'].value,
+        ownerNumber: f['seller.ownerNumber'].value,
+        humanPauseHours: Number(f['seller.humanPauseHours'].value),
+        replyDelaySeconds: Number(f['seller.replyDelaySeconds'].value),
+        maxRepliesPerHour: Number(f['seller.maxRepliesPerHour'].value),
+      },
     };
   }
 
@@ -457,6 +551,33 @@
       toast(err.message);
     }
   });
+  // Enter en el campo de prueba prueba la respuesta en vez de guardar los ajustes.
+  $('#seller-test-msg').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    $('#btn-seller-test').click();
+  });
+
+  $('#btn-seller-test').addEventListener('click', async () => {
+    const message = $('#seller-test-msg').value.trim();
+    const out = $('#seller-test-out');
+    if (!message) return toast('Escribe un mensaje de prueba');
+    const btn = $('#btn-seller-test');
+    btn.disabled = true;
+    out.hidden = false;
+    out.textContent = 'Pensando…';
+    try {
+      const d = await post('/api/seller/preview', { message, instructions: form.elements['seller.instructions'].value });
+      out.innerHTML =
+        `${escapeHtml(d.reply)}` +
+        `<span class="meta">${d.handoff ? `✋ Te pasaría el chat · ${escapeHtml(d.reason)}${d.summary ? ` · ${escapeHtml(d.summary)}` : ''}` : '🤖 Seguiría respondiendo el asistente'} · no se envió nada</span>`;
+    } catch (err) {
+      out.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   $('#btn-unlink').addEventListener('click', async () => {
     if (!confirm('¿Desvincular este dispositivo de tu WhatsApp? Tendrás que escanear el QR de nuevo.')) return;
     try {

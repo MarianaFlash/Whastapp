@@ -28,3 +28,29 @@ describe('Fecha de inicio', () => {
     assert.equal(nextTrackingSinceDate({ ...s, trackingSinceDate: '2026-09-15' }, '2026-12-05', 'x'), null);
   });
 });
+
+describe('Modo vendedor', () => {
+  it('viene apagado y los ajustes viejos sin la sección quedan con los valores por defecto', () => {
+    assert.equal(defaultSettings.seller.enabled, false);
+    assert.deepEqual(sanitizeSettings({}).seller, defaultSettings.seller);
+  });
+
+  it('limpia el número, recorta las instrucciones y pone límites razonables', () => {
+    const s = sanitizeSettings({
+      seller: {
+        enabled: true,
+        instructions: `  Vendo un carro\r\nPrecio fijo  `,
+        ownerNumber: '+57 300 123-4567',
+        humanPauseHours: 0,
+        replyDelaySeconds: 999,
+        maxRepliesPerHour: 'abc',
+      },
+    }).seller;
+    assert.equal(s.enabled, true);
+    assert.equal(s.instructions, 'Vendo un carro\nPrecio fijo');
+    assert.equal(s.ownerNumber, '573001234567');
+    assert.equal(s.humanPauseHours, 1);
+    assert.equal(s.replyDelaySeconds, 120);
+    assert.equal(s.maxRepliesPerHour, defaultSettings.seller.maxRepliesPerHour);
+  });
+});

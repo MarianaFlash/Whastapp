@@ -6,10 +6,22 @@
 #   curl -fsSL https://raw.githubusercontent.com/MarianaFlash/Whastapp/claude/sleepy-johnson-mx3qyu/scripts/install.sh | bash
 #
 # Opcional, antes de "bash":  DASHBOARD_PASSWORD='mi-clave'  (si no, se genera una y se muestra al final)
+#
+# Segunda copia con el modo vendedor (otro número, otro puerto, otros datos):
+#   curl -fsSL …/scripts/install.sh | PENDIENTES_MODO=vendedor ANTHROPIC_API_KEY='tu-clave' bash
 set -euo pipefail
 
 BRANCH="${PENDIENTES_BRANCH:-claude/sleepy-johnson-mx3qyu}"
-DIR="${PENDIENTES_DIR:-/opt/pendientes}"
+MODO="${PENDIENTES_MODO:-personal}"
+if [ "$MODO" = "vendedor" ]; then
+  DIR="${PENDIENTES_DIR:-/opt/pendientes-vendedor}"
+  COMPOSE_FILE="docker-compose.vendedor.yml"
+  DEFAULT_PORT=3001
+else
+  DIR="${PENDIENTES_DIR:-/opt/pendientes}"
+  COMPOSE_FILE="docker-compose.hostinger.yml"
+  DEFAULT_PORT=3000
+fi
 RAW="https://raw.githubusercontent.com/MarianaFlash/Whastapp/${BRANCH}"
 ZONA="${PENDIENTES_TZ:-America/Bogota}"
 
@@ -24,7 +36,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-say "→ Pendientes · instalador"
+say "→ Pendientes · instalador (${MODO})"
 
 # ---------- Docker ----------
 if ! command -v docker >/dev/null 2>&1; then
@@ -53,10 +65,10 @@ fi
 say "✓ Docker $(docker --version | sed 's/Docker version //; s/,.*//') listo"
 
 # ---------- puerto libre ----------
-HOST_PORT="${PENDIENTES_PORT:-3000}"
+HOST_PORT="${PENDIENTES_PORT:-$DEFAULT_PORT}"
 port_busy() { ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$1\$"; }
 if [ ! -f "${DIR}/.env" ]; then
-  for p in "$HOST_PORT" 3001 3002 3003 3004 3005; do
+  for p in "$HOST_PORT" 3001 3002 3003 3004 3005 3006; do
     if ! port_busy "$p"; then HOST_PORT="$p"; break; fi
   done
 fi
@@ -64,7 +76,7 @@ fi
 # ---------- archivos ----------
 mkdir -p "$DIR"
 cd "$DIR"
-curl -fsSL "${RAW}/docker-compose.hostinger.yml" -o docker-compose.yml
+curl -fsSL "${RAW}/${COMPOSE_FILE}" -o docker-compose.yml
 
 IP="$(curl -fsSL --max-time 5 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
 
@@ -79,7 +91,17 @@ PUBLIC_URL=http://${IP}:${HOST_PORT}
 HOST_PORT=${HOST_PORT}
 TZ=${ZONA}
 EOF
+  if [ "$MODO" = "vendedor" ]; then
+    echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}" >> .env
+  fi
 else
+  # Al reinstalar, una clave nueva reemplaza la guardada.
+  if [ "$MODO" = "vendedor" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    grep -v '^ANTHROPIC_API_KEY=' .env > .env.tmp || true
+    echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" >> .env.tmp
+    mv .env.tmp .env
+    chmod 600 .env
+  fi
   HOST_PORT="$(grep -E '^HOST_PORT=' .env | cut -d= -f2- || echo 3000)"
   HOST_PORT="${HOST_PORT:-3000}"
 fi
@@ -110,5 +132,11 @@ fi
 echo
 echo "  Siguiente paso: abre esa dirección, entra con la contraseña y escanea el QR"
 echo "  desde WhatsApp → Dispositivos vinculados → Vincular un dispositivo."
+if [ "$MODO" = "vendedor" ]; then
+  echo "  Usa el WhatsApp Business del número de ventas. Luego ve a Ajustes → Modo vendedor."
+  if ! grep -qE '^ANTHROPIC_API_KEY=.+' .env; then
+    echo "  ⚠ Falta la clave de Anthropic: vuelve a ejecutar con ANTHROPIC_API_KEY='tu-clave'."
+  fi
+fi
 echo
 echo "  Para actualizar más adelante: vuelve a ejecutar este mismo comando."

@@ -1,10 +1,12 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pino from 'pino';
+import { ClaudeResponder } from './ai.js';
 import { assertConfig, config } from './config.js';
 import { Repo } from './db.js';
 import { Notifier } from './notifier.js';
 import { INITIAL_HISTORY_DAYS, nextTrackingSinceDate } from './settings.js';
+import { Seller } from './seller.js';
 import { localDateKey } from './status.js';
 import { Tracker } from './tracker.js';
 import { createServer } from './web/server.js';
@@ -45,6 +47,9 @@ function syncStartDate(force = false): void {
 // Al arrancar siempre limpia (datos de versiones anteriores o fecha cambiada).
 syncStartDate(true);
 
+// Se asigna después de crear el cliente de WhatsApp, que el modo vendedor necesita para responder.
+let seller: Seller | null = null;
+
 const wa = new WhatsAppClient({
   authDir: path.join(config.dataDir, 'auth'),
   logger,
@@ -52,6 +57,11 @@ const wa = new WhatsAppClient({
     const result = tracker.handle(ev);
     if (result.started) logger.debug({ jid: ev.jid }, 'nueva espera');
     if (result.resolved) logger.debug({ jid: ev.jid }, 'espera resuelta');
+    try {
+      seller?.handle(ev, result.skipped);
+    } catch (err) {
+      logger.error({ err, jid: ev.jid }, 'modo vendedor: no se pudo procesar el mensaje');
+    }
   },
   onName: ({ jid, name, saved }) => {
     const chat = repo.findChatByAnyJid(jid);
@@ -59,6 +69,30 @@ const wa = new WhatsAppClient({
     if (saved || !chat.name) repo.setName(jid, name, Math.floor(Date.now() / 1000));
   },
   batch: (fn) => repo.transaction(fn),
+});
+
+seller = new Seller({
+  repo,
+  wa,
+  logger,
+  responder: config.anthropicApiKey
+    ? new ClaudeResponder(config.anthropicApiKey, config.anthropicModel, config.anthropicEffort)
+    : null,
+  timezone: config.timezone,
+  publicUrl: config.publicUrl,
+});
+const sellerReady = seller;
+if (repo.getSettings().seller.enabled) {
+  const status = sellerReady.status();
+  logger.info({ ready: status.ready, model: status.model, problem: status.problem }, 'modo vendedor activado');
+}
+
+// Al (re)conectar, contesta lo que haya quedado pendiente mientras estaba desconectado.
+let wasConnected = false;
+wa.on('state', () => {
+  const connected = wa.isConnected();
+  if (connected && !wasConnected) sellerReady.resumePending();
+  wasConnected = connected;
 });
 
 const notifier = new Notifier({
@@ -74,6 +108,7 @@ const app = createServer({
   tracker,
   wa,
   notifier,
+  seller: sellerReady,
   logger,
   password: config.dashboardPassword!,
   publicDir: path.join(here, 'web', 'public'),
@@ -107,6 +142,7 @@ async function shutdown(signal: string): Promise<void> {
   clearInterval(tick);
   clearInterval(prune);
   server.close();
+  sellerReady.stop();
   await wa.stop();
   repo.close();
   process.exit(0);

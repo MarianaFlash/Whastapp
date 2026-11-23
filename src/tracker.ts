@@ -19,6 +19,14 @@ export interface MessageEvent {
   name?: string | null;
   mentionsMe?: boolean;
   quotesMe?: boolean;
+  /** Texto completo del mensaje, o una etiqueta como "[Nota de voz]" para adjuntos. */
+  text?: string | null;
+  /** true si llegó en vivo (no en la sincronización de historial). */
+  live?: boolean;
+  /** true si lo envió esta misma app (asistente o avisos), no tú desde el teléfono. */
+  byApp?: boolean;
+  /** Jid tal como lo reporta WhatsApp, para responder en el mismo chat. */
+  remoteJid?: string;
 }
 
 export interface TrackResult {

@@ -166,7 +166,7 @@ dialog .dlg-body { padding: 16px 20px; max-height: 70vh; overflow: auto; }
 dialog .dlg-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding: 14px 20px; border-top: 1px solid var(--border); }
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; min-width: 0; }
 .field label { font-size: 13px; color: var(--muted); }
-.field input, .field select {
+.field input, .field select, .field textarea {
   width: 100%; min-width: 0;
   padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg);
 }
@@ -208,3 +208,21 @@ legend { padding: 0 6px; color: var(--muted); font-size: 13px; }
   .grid-2 { grid-template-columns: 1fr; }
   .topbar .actions .label { display: none; }
 }
+
+/* ---------- modo vendedor ---------- */
+.field textarea { resize: vertical; min-height: 160px; line-height: 1.4; }
+.panel.warn { border-color: color-mix(in srgb, var(--yellow) 55%, var(--border)); background: color-mix(in srgb, var(--yellow) 10%, var(--surface)); }
+.tag.bot { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); color: var(--accent); font-weight: 600; }
+.tag.human { background: color-mix(in srgb, var(--yellow) 20%, var(--surface)); color: var(--text); font-weight: 600; }
+.preview.handoff { white-space: normal; color: var(--text); }
+.seller-status { margin: 0 0 12px; }
+.seller-status.ok { color: var(--ok); }
+.seller-status.problem { color: var(--red); }
+.seller-test-out { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); white-space: pre-wrap; }
+.seller-test-out .meta { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.convo { display: flex; flex-direction: column; gap: 8px; }
+.convo .msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; word-wrap: break-word; }
+.convo .msg small { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); }
+.convo .msg.buyer { align-self: flex-start; background: var(--surface-2); }
+.convo .msg.bot { align-self: flex-end; background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+.convo .msg.owner { align-self: flex-end; background: color-mix(in srgb, var(--yellow) 20%, var(--surface)); }

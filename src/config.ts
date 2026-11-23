@@ -16,6 +16,12 @@ export const config = {
   /** Zona horaria para horarios silenciosos y resúmenes. */
   timezone: env('TZ', 'America/Bogota')!,
   logLevel: env('LOG_LEVEL', 'info')!,
+  /** Clave de la API de Anthropic. Solo hace falta para el modo vendedor. */
+  anthropicApiKey: env('ANTHROPIC_API_KEY', '')!,
+  /** Modelo de Claude que responde en el modo vendedor. */
+  anthropicModel: env('ANTHROPIC_MODEL', 'claude-opus-5-5')!,
+  /** Esfuerzo de razonamiento: low | medium | high. Para chats cortos basta low. */
+  anthropicEffort: env('ANTHROPIC_EFFORT', 'low')!,
   /** Commit con el que se construyó la imagen (lo pone el Dockerfile). */
   version: env('APP_VERSION', 'dev')!,
   builtAt: env('APP_BUILT_AT', '')!,

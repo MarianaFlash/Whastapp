@@ -8,7 +8,7 @@ Dashboard personal que se conecta a tu WhatsApp como un dispositivo vinculado y 
 - **Avisos por WhatsApp** a tu propio chat ("Tú"): alerta inmediata cuando alguien pasa a crítico y resúmenes a las horas que elijas.
 - **Tu tiempo de respuesta** del día y de la semana.
 
-Todo corre en tu servidor. No se envía nada a terceros.
+Todo corre en tu servidor. No se envía nada a terceros, salvo si activas el modo vendedor (ver abajo).
 
 ## Cómo funciona
 
@@ -142,6 +142,59 @@ docker run --rm -v pendientes_pendientes_data:/data -v "$PWD":/backup alpine \
   tar czf /backup/pendientes-backup.tgz -C /data .
 ```
 
+## Modo vendedor · respuestas automáticas con IA
+
+Para cuando vendes algo y publicaste un número de WhatsApp en los anuncios. Un asistente con
+Claude contesta a los compradores usando tus instrucciones (qué vendes, precio, ubicación,
+horarios) y te pasa a ti lo que no debe resolver solo.
+
+- **Espera a que el comprador termine de escribir** (10 segundos por defecto) y contesta todo junto,
+  con "escribiendo…" antes de enviar.
+- **Nunca negocia.** Las ofertas, las visitas con fecha, lo que no está en las instrucciones y
+  cualquier cosa sospechosa (pagar sin ver, transportadores, pedir códigos) te las pasa: le dice
+  al comprador que le respondes pronto, se calla en ese chat y te manda un aviso con el resumen
+  a tu WhatsApp personal.
+- **Si respondes tú desde el teléfono, se calla en ese chat** 24 horas (ajustable).
+- **Topes:** 40 respuestas por hora en total y 15 por chat (protege de bucles con otros bots).
+  Si la IA falla, no le escribe nada al comprador y te avisa.
+- En el dashboard cada chat muestra si lo atiende el asistente o tú, con botones para
+  **ver la conversación**, **atender yo** y **reactivar el asistente**. En Ajustes hay una caja para
+  **probar qué respondería** sin enviar nada.
+
+Viene **apagado**. Solo guarda el texto de las conversaciones mientras está activo.
+
+### Cómo instalarlo para un número de ventas
+
+Usa una **segunda copia** con su propio número (por ejemplo una eSIM con WhatsApp Business), así tu
+WhatsApp personal no se toca:
+
+1. Abre la **terminal del navegador** del VPS en hPanel y pega, con tu clave de Anthropic:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/MarianaFlash/Whastapp/claude/sleepy-johnson-mx3qyu/scripts/install.sh | PENDIENTES_MODO=vendedor ANTHROPIC_API_KEY='tu-clave' bash
+   ```
+
+   Queda en `/opt/pendientes-vendedor`, en el puerto `3001` (o el siguiente libre), y al final imprime
+   la dirección y la contraseña. Si tu VPS tiene Docker Manager, también puedes pegar
+   `docker-compose.vendedor.yml` en un proyecto nuevo y definir ahí las variables.
+2. Abre ese puerto en el firewall si tienes uno activo.
+3. Entra a la dirección que imprimió el instalador y escanea el QR desde **WhatsApp Business del número de
+   ventas** → Dispositivos vinculados. El número sigue funcionando normal en tu celular.
+4. En **Ajustes → Modo vendedor** pega las instrucciones, pon tu número personal para los avisos,
+   prueba un par de mensajes y activa **Responder automáticamente**.
+
+Variables propias de este modo:
+
+| Variable | Obligatoria | Descripción |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | sí, para responder | Clave de la API de Anthropic. Se cobra por uso. |
+| `ANTHROPIC_MODEL` | no | Modelo de Claude. Por defecto `claude-opus-5-5`. |
+| `ANTHROPIC_EFFORT` | no | Cuánto razona antes de responder: `low` (por defecto), `medium` o `high`. |
+
+**Riesgo:** responder automáticamente con una conexión no oficial (ver Privacidad y riesgos) tiene
+más riesgo de bloqueo que solo leer. Úsalo con un número dedicado a la venta, no con tu número
+personal. El asistente solo contesta a quien escribe primero y nunca envía mensajes masivos.
+
 ## Variables de entorno
 
 | Variable | Obligatoria | Descripción |
@@ -169,7 +222,8 @@ Los avisos del navegador se activan desde Ajustes y solo funcionan con la pesta�
 
 - Se guardan **metadatos**: identificador del chat, nombre, hora y dirección de cada mensaje, y una vista previa corta del último mensaje pendiente (puedes apagarla). No se guarda el historial.
 - La base de datos y la sesión de WhatsApp están solo en tu servidor. Protégelo con una contraseña larga y, si puedes, HTTPS.
-- La conexión usa [Baileys](https://github.com/WhiskeySockets/Baileys), una librería **no oficial** que habla el protocolo de WhatsApp Web. Va contra los términos de servicio de WhatsApp. El riesgo de bloqueo es bajo para un uso personal que casi solo lee, pero no es cero. Por eso la herramienta no envía nada a terceros: solo te escribe a ti.
+- La conexión usa [Baileys](https://github.com/WhiskeySockets/Baileys), una librería **no oficial** que habla el protocolo de WhatsApp Web. Va contra los términos de servicio de WhatsApp. El riesgo de bloqueo es bajo para un uso personal que casi solo lee, pero no es cero. Por eso, en el modo normal, la herramienta no le escribe a nadie más: solo te escribe a ti.
+- Con el **modo vendedor** activo, el texto de los chats de ese número se guarda en tu servidor y se envía a la API de Anthropic para generar cada respuesta, y el asistente sí les escribe a los compradores.
 - Si WhatsApp cierra la sesión (por ejemplo, si desvinculas el dispositivo desde el teléfono), el dashboard vuelve a mostrar el QR.
 - Si el teléfono pasa 14 días sin conectarse, WhatsApp desvincula los dispositivos y hay que escanear de nuevo.
 
@@ -199,6 +253,8 @@ src/
   stats.ts        tiempo de respuesta del día y la semana
   whatsapp.ts     cliente Baileys: conexión, QR, historial, mensajes
   notifier.ts     alertas críticas y resúmenes a tu chat
+  seller.ts       modo vendedor: cuándo responder, pausas, topes y avisos
+  ai.ts           conexión con Claude y reglas fijas del asistente
   web/server.ts   API y login
   web/public/     dashboard (HTML, CSS y JS sin dependencias)
 ```
